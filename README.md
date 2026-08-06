@@ -37,11 +37,11 @@ allow-list with both Google accounts that should have access:
 ```sql
 insert into allowed_emails (email) values
   ('mary@example.com'),
-  ('rogerthatheart@gmail.com');
+  ('roger@example.com');
 ```
 
-(Swap in Mary's real address. Adding or removing someone later is just an
-`insert`/`delete` on that table — no redeploy needed.)
+(Swap in the real Google account addresses. Adding or removing someone later
+is just an `insert`/`delete` on that table — no redeploy needed.)
 
 ### 3. Turn on Google sign-in
 

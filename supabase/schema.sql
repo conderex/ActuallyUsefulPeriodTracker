@@ -22,7 +22,7 @@ create policy "allowed users can read the allow-list"
   ));
 
 -- Seed with Mary's and Roger's Google account emails before anyone signs in.
--- insert into allowed_emails (email) values ('mary@example.com'), ('rogerthatheart@gmail.com');
+-- insert into allowed_emails (email) values ('mary@example.com'), ('roger@example.com');
 
 -- ── cycle_entries ───────────────────────────────────────────────────────
 -- One row per logged event: a period start, a period end, or a note
