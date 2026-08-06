@@ -1,0 +1,7 @@
+# Not part of the deployed app — kept out of the Vercel deployment even
+# though the repo itself stays private.
+supabase/
+sql/
+js/cycleFlag.test.js
+README.md
+.github/
