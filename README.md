@@ -66,19 +66,25 @@ The anon key is meant to be public — the `allowed_emails`-gated row-level
 security policies in `supabase/schema.sql` are what actually protect the
 data, not keeping this key secret.
 
-### 5. Turn on GitHub Pages
+### 5. Deploy with Vercel
 
-Repo Settings → Pages → Source: **GitHub Actions**. `.github/workflows/deploy.yml`
-publishes `index.html`, `manifest.json`, `sw.js`, `js/`, and `icons/` on every
-push to `main`.
+Vercel's free plan deploys straight from a **private** GitHub repo — no need
+to make anything public:
 
-**Privacy note:** GitHub Pages sites served from a private repo are still
-publicly reachable at their `github.io` URL unless the account is on a plan
-that supports private Pages (GitHub Enterprise Cloud) — a free/personal plan
-publishes the page itself to anyone with the link. That page is just app
-code with no cycle data baked in (every read/write goes through Supabase,
-gated by Google sign-in + the `allowed_emails` allow-list), so the entries
-themselves stay private either way — but the URL would reveal that this app
-exists and is Mary's. If that's not acceptable, say so and we can look at an
-access-gated alternative (e.g. Cloudflare Pages with Cloudflare Access)
-instead of plain GitHub Pages.
+1. [vercel.com](https://vercel.com) → sign in with GitHub → **Add New… → Project**.
+2. Import `conderex/ActuallyUsefulPeriodTracker`. Vercel needs read access to
+   the repo via its GitHub App — grant it just for this repo if asked.
+3. Framework Preset: **Other**. Leave the build command empty — there isn't
+   one; this is a static site. Leave the output directory as the repo root.
+4. Deploy. Vercel gives you a `*.vercel.app` URL and redeploys automatically
+   on every push to `main` after that.
+
+`.vercelignore` keeps `supabase/`, `sql/`, `README.md`, and the test file out
+of the deployed output — only the app itself (`index.html`, `manifest.json`,
+`sw.js`, `js/`, `icons/`) ships. `vercel.json` sets `sw.js` to
+`Cache-Control: no-cache` so the service worker always re-checks for updates
+instead of getting stuck on a stale version behind Vercel's CDN.
+
+Once deployed, go back to Supabase (step 3) and set **Site URL** to the
+`*.vercel.app` URL Vercel gives you — Google OAuth redirects there after
+sign-in.
