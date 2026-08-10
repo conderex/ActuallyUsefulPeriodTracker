@@ -49,7 +49,7 @@ function render() {
 async function loadData() {
   if (!navigator.onLine) {
     loadFromCache();
-    showOfflineBanner(true);
+    setConnectionStatus('offline');
     renderAll();
     return;
   }
@@ -64,13 +64,36 @@ async function loadData() {
     state.settings = settingsRes.data ?? state.settings;
     localStorage.setItem(LS_ENTRIES, JSON.stringify(state.entries));
     localStorage.setItem(LS_SETTINGS, JSON.stringify(state.settings));
-    showOfflineBanner(false);
+    setConnectionStatus('ok');
   } catch (err) {
-    console.error('loadData failed, falling back to cache', err);
+    // A failed query is NOT the same as being offline. Reporting every error
+    // as "you're offline" hides real problems (a bad key, a broken policy)
+    // behind a message that tells Mary to check her wifi.
+    console.error('loadData failed', err);
     loadFromCache();
-    showOfflineBanner(true);
+    setConnectionStatus('error', describeError(err));
   }
   renderAll();
+}
+
+// Turn a Supabase/Postgres error into something worth reading. Anything we
+// haven't seen before falls through to its own message rather than a generic
+// shrug, so an unexpected failure is still diagnosable from the screen.
+function describeError(err) {
+  const code = err?.code;
+  if (code === '42P17') {
+    return 'The database security rules are misconfigured (infinite recursion). Re-run supabase/schema.sql.';
+  }
+  if (code === 'PGRST301' || err?.status === 401) {
+    return 'Your sign-in expired. Sign out and back in.';
+  }
+  if (code === 'PGRST116') {
+    return 'This account is not on the allow-list, so there is nothing it can read.';
+  }
+  if (err?.message?.includes('Failed to fetch')) {
+    return "Couldn't reach the database. Check your connection.";
+  }
+  return err?.message || 'Something went wrong talking to the database.';
 }
 
 function loadFromCache() {
@@ -83,14 +106,27 @@ function loadFromCache() {
   }
 }
 
-function showOfflineBanner(show) {
-  document.getElementById('offline-banner').classList.toggle('hidden', !show);
-  document.querySelectorAll('.quick-add button').forEach((el) => { el.disabled = show; });
-  document.getElementById('avg-override-input').disabled = show;
+// status: 'ok' | 'offline' | 'error'
+function setConnectionStatus(status, detail) {
+  const banner = document.getElementById('connection-banner');
+  const blocked = status !== 'ok';
+
+  if (status === 'ok') {
+    banner.classList.add('hidden');
+  } else {
+    banner.classList.remove('hidden');
+    banner.classList.toggle('is-error', status === 'error');
+    banner.textContent = status === 'offline'
+      ? "You're offline — showing your last synced data. Editing resumes once you're back online."
+      : detail;
+  }
+
+  document.querySelectorAll('.quick-add button').forEach((el) => { el.disabled = blocked; });
+  document.getElementById('avg-override-input').disabled = blocked;
 }
 
 window.addEventListener('online', () => { if (state.session) loadData(); });
-window.addEventListener('offline', () => showOfflineBanner(true));
+window.addEventListener('offline', () => setConnectionStatus('offline'));
 
 // ----------------------------------------------------------------- Writes
 

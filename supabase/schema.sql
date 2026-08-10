@@ -18,13 +18,39 @@ create table if not exists allowed_emails (
 
 alter table allowed_emails enable row level security;
 
+-- ── is_allowed_user() ───────────────────────────────────────────────────
+-- Every policy below asks the same question: "is the signed-in account on
+-- the allow-list?" That check has to live in a SECURITY DEFINER function
+-- rather than inline in each policy.
+--
+-- Why: RLS applies to tables referenced INSIDE a policy too. An inline
+-- `exists (select 1 from allowed_emails ...)` therefore re-triggers
+-- allowed_emails' own policy, which re-runs the same subquery — Postgres
+-- rejects it as infinite recursion (42P17) and every read and write fails.
+-- SECURITY DEFINER runs the lookup as the function owner, which bypasses RLS
+-- and breaks the cycle. `stable` lets Postgres call it once per statement
+-- instead of once per row.
+create or replace function public.is_allowed_user()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.allowed_emails a
+    where a.email = auth.jwt() ->> 'email'
+  );
+$$;
+
+revoke all on function public.is_allowed_user() from public;
+grant execute on function public.is_allowed_user() to authenticated, anon;
+
 -- Only an already-allowed signed-in user can see who else is allowed.
 drop policy if exists "allowed users can read the allow-list" on allowed_emails;
 create policy "allowed users can read the allow-list"
   on allowed_emails for select
-  using (exists (
-    select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'
-  ));
+  using (public.is_allowed_user());
 
 -- Seed with Mary's and Roger's Google account emails before anyone signs in.
 -- insert into allowed_emails (email) values ('mary@example.com'), ('roger@example.com');
@@ -50,23 +76,23 @@ alter table cycle_entries enable row level security;
 drop policy if exists "allowed users can read entries" on cycle_entries;
 create policy "allowed users can read entries"
   on cycle_entries for select
-  using (exists (select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'));
+  using (public.is_allowed_user());
 
 drop policy if exists "allowed users can insert entries" on cycle_entries;
 create policy "allowed users can insert entries"
   on cycle_entries for insert
-  with check (exists (select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'));
+  with check (public.is_allowed_user());
 
 drop policy if exists "allowed users can update entries" on cycle_entries;
 create policy "allowed users can update entries"
   on cycle_entries for update
-  using (exists (select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'))
-  with check (exists (select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'));
+  using (public.is_allowed_user())
+  with check (public.is_allowed_user());
 
 drop policy if exists "allowed users can delete entries" on cycle_entries;
 create policy "allowed users can delete entries"
   on cycle_entries for delete
-  using (exists (select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'));
+  using (public.is_allowed_user());
 
 create or replace function set_updated_at()
 returns trigger as $$
@@ -99,13 +125,13 @@ alter table cycle_settings enable row level security;
 drop policy if exists "allowed users can read settings" on cycle_settings;
 create policy "allowed users can read settings"
   on cycle_settings for select
-  using (exists (select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'));
+  using (public.is_allowed_user());
 
 drop policy if exists "allowed users can update settings" on cycle_settings;
 create policy "allowed users can update settings"
   on cycle_settings for update
-  using (exists (select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'))
-  with check (exists (select 1 from allowed_emails a where a.email = auth.jwt() ->> 'email'));
+  using (public.is_allowed_user())
+  with check (public.is_allowed_user());
 
 drop trigger if exists cycle_settings_set_updated_at on cycle_settings;
 create trigger cycle_settings_set_updated_at
