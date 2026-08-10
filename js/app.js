@@ -194,6 +194,20 @@ function daysSince(date) {
   return Math.floor((Date.now() - date.getTime()) / 86400000);
 }
 
+// The start of a period that is still running — i.e. the most recent
+// period_start with no period_end logged after it. Returns null once the
+// period has been closed out, which is what suppresses the "Day N" line.
+function openPeriodStart() {
+  const ordered = [...state.entries].sort(
+    (a, b) => new Date(a.occurred_at) - new Date(b.occurred_at));
+  let open = null;
+  for (const e of ordered) {
+    if (e.entry_type === 'period_start') open = new Date(e.occurred_at);
+    else if (e.entry_type === 'period_end') open = null;
+  }
+  return open;
+}
+
 function computedAverage() {
   const lengths = cycleLengthsWithDates().map((c) => c.lengthDays);
   if (!lengths.length) return null;
@@ -259,13 +273,11 @@ function renderDayCount() {
   label.textContent = ENTRY_COUNTER_LABEL[latest.entry_type] || 'Days since last entry';
   el.textContent = String(days);
 
-  // The counter now follows the newest entry of any type, so the cycle-day
-  // figure gets its own line — otherwise logging a period end would hide
-  // how far into the cycle she actually is.
-  const sinceStart = daysSinceLastStart();
-  sub.textContent = sinceStart == null
-    ? (days === 0 ? 'Logged today' : '')
-    : `Day ${sinceStart + 1} of this cycle`;
+  // "Day N" only means something while a period is actually running. Once an
+  // end is logged the period is over, so the line disappears until the next
+  // start opens a new one at Day 1.
+  const open = openPeriodStart();
+  sub.textContent = open ? `Day ${daysSince(open) + 1} of this period` : '';
 }
 
 function renderBanner() {

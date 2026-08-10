@@ -23,6 +23,21 @@ Call `evaluateCycle()` client-side right after a period-end is logged, and run
 `sql/cycle_flag.sql` (the same logic in SQL) from the scheduled job that
 builds the notification email digest.
 
+## Tests
+
+```
+node --test js/cycleFlag.test.js   # the anomaly-detection maths
+node test/e2e.mjs                  # the whole UI, in headless Chromium
+```
+
+The end-to-end run drives the real `index.html` against a stand-in Supabase
+client (`test/mock-supabase.js`), so it needs no project, no network and no
+credentials. It covers logging, editing and deleting entries, the day counter
+in each of its states, the trend graph's three ranges, CSV and report export,
+the gentle out-of-range and long-gap banners, failure reporting, and the
+mobile and desktop layouts in both themes. Fixtures are generated relative to
+the current date, so the suite doesn't rot.
+
 ## Manual setup (do this once, outside this repo)
 
 The app's code is all here, but a few things only exist inside dashboards I
