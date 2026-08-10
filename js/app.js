@@ -6,6 +6,13 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const LS_ENTRIES = 'cycle-tracker:entries';
 const LS_SETTINGS = 'cycle-tracker:settings';
 
+// Where Google sends her back to. Deliberately built from origin + pathname
+// rather than location.href: after a sign-in the URL carries the auth payload
+// (#access_token=... or ?code=...), and reusing it as the redirect target on a
+// later sign-in sends that stale payload along, which is then parsed instead
+// of the fresh one — landing straight back on the login screen.
+const APP_URL = `${window.location.origin}${window.location.pathname}`;
+
 const state = {
   session: null,
   entries: [],
@@ -21,16 +28,65 @@ async function init() {
   wireListeners();
   render();
 
+  const callbackError = readAuthCallbackError();
+
+  // getSession() resolves after the client has consumed any auth payload in
+  // the URL, so this is the point at which it's safe to tidy the address bar.
   const { data: { session } } = await sb.auth.getSession();
+  stripAuthParamsFromUrl();
+
   state.session = session;
   render();
+  if (!session && callbackError) showAuthError(callbackError);
   if (session) await loadData();
 
   sb.auth.onAuthStateChange(async (_event, session) => {
     state.session = session;
     render();
-    if (session) await loadData();
+    if (session) { clearAuthError(); await loadData(); }
   });
+}
+
+// Supabase reports a failed callback as error params on either the hash or the
+// query string, depending on the flow. Without this the page just shows the
+// login screen again with no explanation.
+function readAuthCallbackError() {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const query = new URLSearchParams(window.location.search);
+  const pick = (k) => hash.get(k) || query.get(k);
+  const code = pick('error_code');
+  const description = pick('error_description');
+  if (!code && !description && !pick('error')) return null;
+
+  // Almost always a sign-in that was left half-finished, or one started in
+  // another tab. Retrying from a clean URL fixes it, which is what the button
+  // now does.
+  if (code === 'bad_oauth_state' || /state/i.test(description || '')) {
+    return 'That sign-in attempt had expired. Tap the button to try again.';
+  }
+  return (description || 'Sign-in failed.').replace(/\+/g, ' ');
+}
+
+function stripAuthParamsFromUrl() {
+  const dirty = window.location.hash.includes('access_token') ||
+                window.location.hash.includes('error') ||
+                window.location.search.includes('code=') ||
+                window.location.search.includes('error');
+  // Access tokens have no business sitting in the address bar or in history.
+  if (dirty && window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, APP_URL);
+  }
+}
+
+function showAuthError(message) {
+  const el = document.getElementById('login-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+function clearAuthError() {
+  document.getElementById('login-error')?.classList.add('hidden');
 }
 
 function registerServiceWorker() {
@@ -694,16 +750,31 @@ function showToast(msg) {
 
 function wireListeners() {
   document.getElementById('google-signin').addEventListener('click', async () => {
+    clearAuthError();
+    // Start every attempt from a clean URL, so a leftover payload from an
+    // earlier sign-in can never be carried into this one.
+    stripAuthParamsFromUrl();
     try {
-      await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: APP_URL },
+      });
+      if (error) throw error;
     } catch (err) {
       console.error('sign-in failed', err);
-      showToast('Sign-in failed — try again.');
+      showAuthError(err?.message || 'Sign-in failed — try again.');
     }
   });
 
   document.getElementById('signout-btn').addEventListener('click', async () => {
-    await sb.auth.signOut();
+    try {
+      await sb.auth.signOut();
+    } catch (err) {
+      console.error('sign-out failed', err);
+    }
+    // Leave the address bar clean so the next sign-in starts from scratch.
+    stripAuthParamsFromUrl();
+    clearAuthError();
   });
 
   document.getElementById('log-start-btn').addEventListener('click', () => {

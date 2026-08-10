@@ -30,7 +30,11 @@
     noteOnly: () => [mk(2, 'note', 'headache today')],
   };
 
-  const which = new URLSearchParams(location.search).get('f') || 'manyCycles';
+  const params = new URLSearchParams(location.search);
+  const which = params.get('f') || 'manyCycles';
+  let signedOut = params.get('signedout') === '1';
+  let authCallback = null;
+  window.__authCalls = [];
   const entries = (FIXTURES[which] || FIXTURES.manyCycles)();
   let settings = { id: 1, average_override: null, sd_multiplier: 2.0 };
   const failMode = new URLSearchParams(location.search).get('fail');
@@ -61,10 +65,17 @@
   window.supabase = {
     createClient: () => ({
       auth: {
-        getSession: () => Promise.resolve({ data: { session: { user: { email: 'mary@example.com' } } } }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
-        signInWithOAuth: () => Promise.resolve(),
-        signOut: () => Promise.resolve(),
+        getSession: () => Promise.resolve({
+          data: { session: signedOut ? null : { user: { email: 'mary@example.com' } } },
+        }),
+        onAuthStateChange: (cb) => { authCallback = cb; return { data: { subscription: { unsubscribe() {} } } }; },
+        // Record what the app asked to be redirected to; the tests assert it
+        // never carries an auth payload from a previous sign-in.
+        signInWithOAuth: (opts) => {
+          window.__authCalls.push(opts);
+          return Promise.resolve({ data: {}, error: null });
+        },
+        signOut: () => { signedOut = true; if (authCallback) authCallback('SIGNED_OUT', null); return Promise.resolve({ error: null }); },
       },
       from(table) {
         if (table === 'cycle_entries') {

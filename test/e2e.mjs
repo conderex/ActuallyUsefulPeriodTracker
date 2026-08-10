@@ -79,7 +79,9 @@ async function open(fixture, opts = {}) {
   page.on('console', (m) => { if (m.type() === 'error') page.__errors.push('console: ' + m.text()); });
   const q = [`f=${fixture}`];
   if (opts.fail) q.push(`fail=${opts.fail}`);
-  await page.goto(`${BASE}?${q.join('&')}`, { waitUntil: 'networkidle' });
+  if (opts.signedOut) q.push('signedout=1');
+  const url = `${BASE}?${q.join('&')}${opts.hash || ''}`;
+  await page.goto(url, { waitUntil: 'networkidle' });
   await page.waitForTimeout(450);
   return page;
 }
@@ -465,6 +467,72 @@ browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', a
 {
   const p = await open('manyCycles');
   check('help link: present in the header', (await p.locator('.topbar-actions a[href="how-to.html"]').count()) === 1);
+  await p.close();
+}
+
+
+// ── 27. Signing in again after a sign-out, in the same tab ────────────
+// Regression: redirectTo used to be location.href, so a stale
+// "#access_token=..." left over from the previous sign-in was sent as the
+// redirect target and parsed instead of the fresh one — bouncing straight
+// back to the login screen. A new tab worked; the same tab did not.
+{
+  const p = await open('manyCycles');
+  check('signout: app is shown while signed in', await p.locator('#app-view').isVisible());
+
+  await p.click('#signout-btn');
+  await p.waitForTimeout(300);
+  check('signout: returns to the login screen', await p.locator('#login-view').isVisible());
+
+  await p.click('#google-signin');
+  await p.waitForTimeout(300);
+  const calls = await p.evaluate(() => window.__authCalls);
+  check('signin: one OAuth attempt recorded', calls.length === 1, JSON.stringify(calls));
+  const redirect = calls[0]?.options?.redirectTo || '';
+  check('signin: redirectTo carries no auth payload',
+        !/access_token|[?&]code=|error/.test(redirect), redirect);
+  check('signin: redirectTo has no hash or query at all',
+        !redirect.includes('#') && !redirect.includes('?'), redirect);
+  await p.close();
+}
+
+// ── 28. A leftover token in the URL is cleaned up, not reused ─────────
+{
+  const p = await open('manyCycles', { hash: '#access_token=stale123&refresh_token=old' });
+  await p.waitForTimeout(300);
+  const href = await p.evaluate(() => window.location.href);
+  check('cleanup: stale token stripped from the address bar',
+        !href.includes('access_token'), href);
+
+  await p.click('#signout-btn');
+  await p.waitForTimeout(300);
+  await p.click('#google-signin');
+  await p.waitForTimeout(300);
+  const redirect = (await p.evaluate(() => window.__authCalls))[0]?.options?.redirectTo || '';
+  check('cleanup: the stale token never reaches redirectTo',
+        !redirect.includes('access_token'), redirect);
+  await p.close();
+}
+
+// ── 29. A failed callback explains itself ─────────────────────────────
+{
+  const p = await open('manyCycles', {
+    signedOut: true,
+    hash: '#error=invalid_request&error_code=bad_oauth_state&error_description=OAuth+state+not+found+or+expired',
+  });
+  await p.waitForTimeout(400);
+  check('auth error: login screen is shown', await p.locator('#login-view').isVisible());
+  const err = await p.locator('#login-error').innerText().catch(() => '');
+  check('auth error: message is visible', err.length > 0, err);
+  check('auth error: says it expired and to retry', /expired/i.test(err) && /try again/i.test(err), err);
+  check('auth error: no raw plus-signs from the URL', !err.includes('+'), err);
+  const href = await p.evaluate(() => window.location.href);
+  check('auth error: error params stripped from the URL', !href.includes('error_code'), href);
+
+  await p.click('#google-signin');
+  await p.waitForTimeout(300);
+  check('auth error: clears when retrying',
+        await p.locator('#login-error').evaluate((e) => e.classList.contains('hidden')));
   await p.close();
 }
 
