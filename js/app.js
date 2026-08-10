@@ -179,8 +179,19 @@ function cycleLengthsWithDates() {
 function daysSinceLastStart() {
   const starts = periodStarts();
   if (!starts.length) return null;
-  const last = starts[starts.length - 1];
-  return Math.floor((Date.now() - last.getTime()) / 86400000);
+  return daysSince(starts[starts.length - 1]);
+}
+
+// The most recent entry of ANY type — what the hero counter counts from, so
+// logging a period end moves the number too.
+function latestEntry() {
+  if (!state.entries.length) return null;
+  return state.entries.reduce((newest, e) =>
+    new Date(e.occurred_at) > new Date(newest.occurred_at) ? e : newest);
+}
+
+function daysSince(date) {
+  return Math.floor((Date.now() - date.getTime()) / 86400000);
 }
 
 function computedAverage() {
@@ -225,17 +236,36 @@ function renderAll() {
   renderGraph();
 }
 
+const ENTRY_COUNTER_LABEL = {
+  period_start: 'Days since period started',
+  period_end: 'Days since period ended',
+  note: 'Days since last note',
+};
+
 function renderDayCount() {
-  const days = daysSinceLastStart();
   const el = document.getElementById('day-count');
+  const label = document.getElementById('day-count-label');
   const sub = document.getElementById('day-count-sub');
-  if (days == null) {
+  const latest = latestEntry();
+
+  if (!latest) {
+    label.textContent = 'Days since last entry';
     el.textContent = '—';
     sub.textContent = 'Log a start date to begin.';
-  } else {
-    el.textContent = String(days);
-    sub.textContent = days === 1 ? 'day since her last period started' : 'days since her last period started';
+    return;
   }
+
+  const days = daysSince(new Date(latest.occurred_at));
+  label.textContent = ENTRY_COUNTER_LABEL[latest.entry_type] || 'Days since last entry';
+  el.textContent = String(days);
+
+  // The counter now follows the newest entry of any type, so the cycle-day
+  // figure gets its own line — otherwise logging a period end would hide
+  // how far into the cycle she actually is.
+  const sinceStart = daysSinceLastStart();
+  sub.textContent = sinceStart == null
+    ? (days === 0 ? 'Logged today' : '')
+    : `Day ${sinceStart + 1} of this cycle`;
 }
 
 function renderBanner() {

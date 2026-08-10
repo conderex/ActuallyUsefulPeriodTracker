@@ -57,6 +57,8 @@
     --lava: #ef6f2b;
     --lava-bright: #ffc23d;
     --smoke: #b9b4ad;
+    --dino: #35766a;
+    --dino-dark: #24564d;
     --scrim: rgba(223, 233, 214, 0.30);
   }
 
@@ -100,6 +102,8 @@
       --lava: #ff7a2f;
       --lava-bright: #ffd75e;
       --smoke: #4a4740;
+      --dino: #4a9c8c;
+      --dino-dark: #2f6b5f;
       --scrim: rgba(20, 24, 15, 0.48);
     }
   }
@@ -141,6 +145,8 @@
     --lava: #ff7a2f;
     --lava-bright: #ffd75e;
     --smoke: #4a4740;
+    --dino: #4a9c8c;
+    --dino-dark: #2f6b5f;
     --scrim: rgba(20, 24, 15, 0.48);
   }
 
@@ -181,6 +187,8 @@
     --lava: #ef6f2b;
     --lava-bright: #ffc23d;
     --smoke: #b9b4ad;
+    --dino: #35766a;
+    --dino-dark: #24564d;
     --scrim: rgba(223, 233, 214, 0.30);
   }
 
@@ -208,7 +216,7 @@
   }
   .scene svg {
     position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; min-width: 760px; height: auto; display: block;
+    width: 100%; height: auto; display: block;
   }
   .scene-scrim { position: fixed; inset: 0; z-index: -1; background: var(--scrim); }
 
@@ -216,6 +224,8 @@
   @keyframes drift { from { transform: translateX(0); } to { transform: translateX(26px); } }
   @keyframes flicker { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
   @keyframes rise { from { transform: translateY(0); opacity: 0.55; } to { transform: translateY(-22px); opacity: 0; } }
+  @keyframes swim { from { transform: translateX(-4px); } to { transform: translateX(36px); } }
+  @keyframes bob  { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 
   .water-fall { animation: fall 1.1s linear infinite; }
   .cloud-drift { animation: drift 22s linear infinite alternate; }
@@ -223,6 +233,8 @@
   .smoke-puff { animation: rise 6s linear infinite; }
   .smoke-puff:nth-of-type(2) { animation-delay: 2s; }
   .smoke-puff:nth-of-type(3) { animation-delay: 4s; }
+  .plesio { animation: swim 19s ease-in-out infinite alternate; }
+  .plesio-bob { animation: bob 3.4s ease-in-out infinite; }
 
   /* ---- Blocky UI primitives ---- */
   .block {
@@ -417,20 +429,38 @@
      ────────────────────────────────────────────────────────────────── */
   @media (min-width: 900px) {
     .shell { max-width: 62rem; padding: 2rem 1.5rem 4rem; }
+    /* Named areas rather than per-item columns: auto-placement won't
+       backtrack, so column 2 used to start level with the quick-add row and
+       leave a hole beside the hero. */
     #app-view {
       display: grid;
       grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      grid-template-areas:
+        "head  head"
+        "conn  conn"
+        "flag  flag"
+        "hero  log"
+        "quick log"
+        "trend log"
+        "avg   exp";
       gap: 1.25rem;
       align-items: start;
     }
-    header.topbar, #connection-banner, #flag-banner-slot { grid-column: 1 / -1; }
+    header.topbar    { grid-area: head; }
+    #connection-banner { grid-area: conn; }
+    #flag-banner-slot  { grid-area: flag; }
+    .hero            { grid-area: hero; }
+    .quick-add       { grid-area: quick; }
+    #trend-card      { grid-area: trend; }
+    #log-card        { grid-area: log; }
+    #average-card    { grid-area: avg; }
+    #export-card     { grid-area: exp; }
+
     #flag-banner-slot:empty { display: none; }
-    .hero, .quick-add, #average-card, #export-card { grid-column: 1; }
-    #trend-card, #log-card { grid-column: 2; }
     .hero, .quick-add, section.card { margin-bottom: 0; }
     .hero .value { font-size: 4.5rem; }
     header.topbar h1 { font-size: 1.15rem; }
-    #log-card { max-height: 30rem; overflow-y: auto; }
+    #log-card { max-height: 34rem; overflow-y: auto; }
   }
 
   /* ---- Print report ---- */
@@ -453,7 +483,7 @@
   #report-view th { color: #4d4c3f; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
 
   @media (prefers-reduced-motion: reduce) {
-    *, .water-fall, .cloud-drift, .lava-glow, .smoke-puff {
+    *, .water-fall, .cloud-drift, .lava-glow, .smoke-puff, .plesio, .plesio-bob {
       transition: none !important; animation: none !important;
     }
   }
@@ -625,10 +655,10 @@
     </g>
     <!-- oaks on the plain -->
     <g>
-      <rect x="256" y="314" width="10" height="26" fill="var(--dirt-dark)"/>
-      <rect x="238" y="290" width="46" height="26" fill="var(--grass-dark)"/>
-      <rect x="246" y="282" width="30" height="10" fill="var(--grass-dark)"/>
-      <rect x="244" y="294" width="14" height="10" fill="var(--grass)"/>
+      <rect x="406" y="314" width="10" height="26" fill="var(--dirt-dark)"/>
+      <rect x="388" y="290" width="46" height="26" fill="var(--grass-dark)"/>
+      <rect x="396" y="282" width="30" height="10" fill="var(--grass-dark)"/>
+      <rect x="394" y="294" width="14" height="10" fill="var(--grass)"/>
     </g>
     <g>
       <rect x="632" y="318" width="8"  height="22" fill="var(--dirt-dark)"/>
@@ -637,12 +667,45 @@
       <rect x="622" y="302" width="12" height="8"  fill="var(--grass)"/>
     </g>
 
-    <rect x="72" y="340" width="104" height="28" fill="var(--water)"/>
-    <rect x="72" y="340" width="104" height="7"  fill="var(--water-light)"/>
+    <!-- the lake the waterfall feeds -->
+    <rect x="60" y="340" width="268" height="34" fill="var(--water)"/>
+    <rect x="60" y="340" width="268" height="7"  fill="var(--water-light)"/>
+    <!-- spray where the fall hits -->
     <g fill="var(--water-foam)" class="lava-glow">
       <rect x="78"  y="334" width="16" height="9"/>
       <rect x="112" y="340" width="16" height="7"/>
       <rect x="148" y="334" width="16" height="9"/>
+    </g>
+
+    <!-- ── Mary's plesiosaur, cruising the lake ── -->
+    <g class="plesio">
+      <g class="plesio-bob">
+        <!-- wake -->
+        <g fill="var(--water-foam)" opacity="0.6">
+          <rect x="166" y="348" width="22" height="4"/>
+          <rect x="258" y="350" width="18" height="4"/>
+        </g>
+        <!-- flippers, behind the body -->
+        <g fill="var(--dino-dark)">
+          <rect x="204" y="346" width="22" height="8"/>
+          <rect x="234" y="346" width="18" height="6"/>
+        </g>
+        <!-- tail, body, neck, head -->
+        <g fill="var(--dino)">
+          <rect x="176" y="336" width="20" height="10"/>
+          <rect x="192" y="328" width="64" height="20"/>
+          <rect x="204" y="322" width="42" height="8"/>
+          <rect x="242" y="292" width="15" height="38"/>
+          <rect x="250" y="284" width="30" height="13"/>
+        </g>
+        <!-- shading down the near side -->
+        <g fill="var(--dino-dark)">
+          <rect x="192" y="342" width="64" height="6"/>
+          <rect x="204" y="322" width="14" height="8"/>
+          <rect x="242" y="292" width="5"  height="38"/>
+        </g>
+        <rect x="268" y="287" width="6" height="6" fill="var(--line)"/>
+      </g>
     </g>
   </svg>
 </div>
@@ -665,7 +728,7 @@
   <div id="connection-banner" class="connection-banner hidden"></div>
 
   <div class="hero block">
-    <div class="label">Days since last start</div>
+    <div class="label" id="day-count-label">Days since last entry</div>
     <div class="value" id="day-count">—</div>
     <div class="sub" id="day-count-sub"></div>
   </div>
@@ -676,6 +739,11 @@
     <button id="log-start-btn" class="btn-primary">+ Log start date</button>
     <button id="log-other-btn" class="btn-secondary">Other</button>
   </div>
+
+  <section class="card block" id="log-card">
+    <h2>Log</h2>
+    <div id="entries-list"></div>
+  </section>
 
   <section class="card block" id="trend-card">
     <h2>Trend</h2>
@@ -708,11 +776,6 @@
       <input type="number" id="avg-override-input" placeholder="auto" min="10" max="90">
     </div>
     <div class="settings-hint">Leave blank to let it update automatically as new cycles complete.</div>
-  </section>
-
-  <section class="card block" id="log-card">
-    <h2>Log</h2>
-    <div id="entries-list"></div>
   </section>
 
   <section class="card block no-print" id="export-card">
