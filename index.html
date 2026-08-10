@@ -8,6 +8,24 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="description" content="A private cycle tracker for Mary. Log a date, see the pattern, nothing else in the way.">
+
+<!-- Link preview (WhatsApp, iMessage, Slack). og:image must be an absolute
+     URL — relative paths are silently dropped by most scrapers. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mary's Cycle Tracker">
+<meta property="og:title" content="Mary's Cycle Tracker">
+<meta property="og:description" content="Log a date. See the pattern. Nothing else.">
+<meta property="og:url" content="https://actually-useful-cycle-tracker.vercel.app/">
+<meta property="og:image" content="https://actually-useful-cycle-tracker.vercel.app/icons/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A pixel-art landscape with a waterfall, a volcano and a plesiosaur swimming in a lake.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mary's Cycle Tracker">
+<meta name="twitter:description" content="Log a date. See the pattern. Nothing else.">
+<meta name="twitter:image" content="https://actually-useful-cycle-tracker.vercel.app/icons/og-image.png">
 <style>
   /* ──────────────────────────────────────────────────────────────────
      Overworld palette. The scenery hues (grass, stone, water, lava) are
@@ -274,6 +292,16 @@
     padding: 0.4rem 0.7rem; font-size: 0.8rem; font-weight: 600; box-shadow: 3px 3px 0 var(--block-shadow);
   }
   .icon-btn:hover { background: var(--accent); color: var(--accent-ink); }
+  a.icon-btn { text-decoration: none; display: inline-block; }
+  .topbar-actions { display: flex; gap: 0.5rem; align-items: center; flex: 0 0 auto; }
+  @media (max-width: 460px) {
+    header.topbar h1 { font-size: 0.9rem; padding: 0.35rem 0.55rem; }
+    .icon-btn { font-size: 0.72rem; padding: 0.35rem 0.5rem; }
+  }
+  .login-help {
+    display: inline-block; margin-top: 1rem; color: var(--accent);
+    font-weight: 700; font-size: 0.88rem;
+  }
 
   /* ---- Hero stat ---- */
   .hero { padding: 1.5rem 1.25rem; margin-bottom: 1rem; text-align: center; }
@@ -370,14 +398,20 @@
   .etype.note { background: var(--warning-soft); color: var(--warning-ink); }
   .entry .edate { font-weight: 700; font-size: 0.9rem; }
   .entry .enote { color: var(--ink-secondary); font-size: 0.85rem; margin-top: 0.2rem; }
-  .entry .echevron { color: var(--muted); font-size: 0.9rem; padding-top: 0.2rem; }
+  .entry .eedit {
+    color: var(--accent); font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; border: 2px solid var(--accent); padding: 0.2rem 0.5rem;
+    white-space: nowrap; align-self: center;
+  }
+  .entry:hover .eedit, .entry:focus-visible .eedit { background: var(--accent); color: var(--accent-ink); }
   .empty-state { color: var(--muted); font-size: 0.88rem; text-align: center; padding: 1.5rem 0; }
 
   /* ---- Edit sheet ---- */
   .sheet-backdrop {
     position: fixed; inset: 0; background: rgba(5, 6, 10, 0.55); display: flex;
-    align-items: flex-end; justify-content: center; z-index: 50;
+    align-items: flex-end; justify-content: center; z-index: 50; padding: 1rem;
   }
+  #dialog-backdrop { align-items: center; z-index: 60; }
   .sheet {
     background: var(--surface); width: 100%; max-width: 480px;
     border: 3px solid var(--line); border-bottom: none; padding: 1.25rem 1.25rem 2rem;
@@ -392,6 +426,20 @@
   .field textarea { min-height: 4.5rem; resize: vertical; }
   .field-row { display: flex; gap: 0.6rem; }
   .field-row .field { flex: 1; }
+  .day-nudge { display: flex; gap: 0.5rem; margin: -0.2rem 0 1rem; }
+  .btn-nudge {
+    flex: 1; background: var(--surface-2); color: var(--ink);
+    border: 3px solid var(--line); box-shadow: 3px 3px 0 var(--block-shadow);
+    padding: 0.55rem 0.4rem; font-size: 0.82rem; font-weight: 700;
+  }
+  .btn-nudge:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--block-shadow); }
+
+  .dialog { max-width: 26rem; border-bottom: 3px solid var(--line); }
+  /* An explanatory sentence shouldn't be shouted in caps like a section label. */
+  .dialog h3 { text-transform: none; letter-spacing: 0; }
+  .sheet.dialog { align-self: center; }
+  .dialog-body { margin: 0; font-size: 0.92rem; color: var(--ink-secondary); }
+
   .sheet-actions { display: flex; gap: 0.6rem; margin-top: 1.1rem; align-items: stretch; }
   .sheet-actions .btn-primary { flex: 1; }
   .btn-danger {
@@ -716,13 +764,17 @@
     <h1>Mary's Cycle Tracker</h1>
     <p>A private log — only you and Roger can see it. Sign in with Google to continue.</p>
     <button id="google-signin" class="btn-google">Sign in with Google</button>
+    <a class="login-help" href="how-to.html">How to use this app</a>
   </div>
 </div>
 
 <div id="app-view" class="shell hidden">
   <header class="topbar">
     <h1>Cycle Tracker</h1>
-    <button id="signout-btn" class="icon-btn">Sign out</button>
+    <div class="topbar-actions">
+      <a class="icon-btn" href="how-to.html">How to use</a>
+      <button id="signout-btn" class="icon-btn">Sign out</button>
+    </div>
   </header>
 
   <div id="connection-banner" class="connection-banner hidden"></div>
@@ -788,6 +840,7 @@
 </div>
 
 <div id="sheet-slot"></div>
+<div id="dialog-slot"></div>
 <div id="toast"></div>
 <div id="report-view"></div>
 

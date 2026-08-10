@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>How to use your Cycle Tracker</title>
+<meta name="theme-color" content="#5fa839">
+<link rel="icon" href="icons/icon-192.png">
+<meta name="description" content="A one-page guide to Mary's Cycle Tracker.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mary's Cycle Tracker">
+<meta property="og:title" content="How to use your Cycle Tracker">
+<meta property="og:description" content="A one-page guide: log a date, fix a mistake, read the graph, share a report.">
+<meta property="og:url" content="https://actually-useful-cycle-tracker.vercel.app/how-to.html">
+<meta property="og:image" content="https://actually-useful-cycle-tracker.vercel.app/icons/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://actually-useful-cycle-tracker.vercel.app/icons/og-image.png">
+<style>
+
+  /* ──────────────────────────────────────────────────────────────────
+     Overworld palette. The scenery hues (grass, stone, water, lava) are
+     scene-only; UI panels sit on their own solid surfaces so cycle data
+     never has to be read against a gradient.
+     ────────────────────────────────────────────────────────────────── */
+  :root {
+    color-scheme: light;
+
+    /* UI */
+    --page: #dfe9d6;
+    --surface: #fbfaf5;
+    --surface-2: #f0eee4;
+    --ink: #17170f;
+    --ink-secondary: #4d4c3f;
+    --muted: #7d7c6d;
+    --line: #17170f;
+    --line-soft: #d6d3c4;
+    --accent: #1d6f7d;
+    --accent-ink: #ffffff;
+    --accent-soft: #d5e9ec;
+    --block-shadow: #17170f;
+
+    /* Status */
+    --warning-soft: #fbeccd;
+    --warning-ink: #6b4a05;
+    --critical: #c0392b;
+    --critical-soft: #f7dcd8;
+    --critical-ink: #7a1f1f;
+
+    /* Scene */
+    --sky-top: #6fb2e6;
+    --sky-bottom: #b8dcf2;
+    --sun: #ffe98a;
+    --cloud: #ffffff;
+    --mountain-far: #6d84a3;
+    --mountain-near: #4f6480;
+    --grass: #6aab3c;
+    --grass-dark: #4d8c2a;
+    --dirt: #8b6141;
+    --dirt-dark: #6f4c33;
+    --stone: #8d8d86;
+    --stone-dark: #6b6b64;
+    --water: #3f7fd6;
+    --water-light: #6fa8ea;
+    --water-foam: #dceaf8;
+    --lava: #ef6f2b;
+    --lava-bright: #ffc23d;
+    --smoke: #b9b4ad;
+    --dino: #35766a;
+    --dino-dark: #24564d;
+    --scrim: rgba(223, 233, 214, 0.30);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #14180f;
+      --surface: #22261b;
+      --surface-2: #1a1e14;
+      --ink: #f2f3e8;
+      --ink-secondary: #c2c4b2;
+      --muted: #8f9180;
+      --line: #05060a;
+      --line-soft: #34382a;
+      --accent: #58cbbd;
+      --accent-ink: #08201f;
+      --accent-soft: #123330;
+      --block-shadow: #05060a;
+
+      --warning-soft: #3d3113;
+      --warning-ink: #f2d590;
+      --critical: #e8776a;
+      --critical-soft: #3d1d19;
+      --critical-ink: #f3aaa0;
+
+      --sky-top: #10182f;
+      --sky-bottom: #26355a;
+      --sun: #e8eeff;
+      --cloud: #43506f;
+      --mountain-far: #2b3550;
+      --mountain-near: #1c2438;
+      --grass: #2f5f21;
+      --grass-dark: #23491a;
+      --dirt: #4a3527;
+      --dirt-dark: #38281d;
+      --stone: #4a4a46;
+      --stone-dark: #35352f;
+      --water: #2a55a0;
+      --water-light: #3d74c4;
+      --water-foam: #8fb4dd;
+      --lava: #ff7a2f;
+      --lava-bright: #ffd75e;
+      --smoke: #4a4740;
+      --dino: #4a9c8c;
+      --dino-dark: #2f6b5f;
+      --scrim: rgba(20, 24, 15, 0.48);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #14180f;
+    --surface: #22261b;
+    --surface-2: #1a1e14;
+    --ink: #f2f3e8;
+    --ink-secondary: #c2c4b2;
+    --muted: #8f9180;
+    --line: #05060a;
+    --line-soft: #34382a;
+    --accent: #58cbbd;
+    --accent-ink: #08201f;
+    --accent-soft: #123330;
+    --block-shadow: #05060a;
+    --warning-soft: #3d3113;
+    --warning-ink: #f2d590;
+    --critical: #e8776a;
+    --critical-soft: #3d1d19;
+    --critical-ink: #f3aaa0;
+    --sky-top: #10182f;
+    --sky-bottom: #26355a;
+    --sun: #e8eeff;
+    --cloud: #43506f;
+    --mountain-far: #2b3550;
+    --mountain-near: #1c2438;
+    --grass: #2f5f21;
+    --grass-dark: #23491a;
+    --dirt: #4a3527;
+    --dirt-dark: #38281d;
+    --stone: #4a4a46;
+    --stone-dark: #35352f;
+    --water: #2a55a0;
+    --water-light: #3d74c4;
+    --water-foam: #8fb4dd;
+    --lava: #ff7a2f;
+    --lava-bright: #ffd75e;
+    --smoke: #4a4740;
+    --dino: #4a9c8c;
+    --dino-dark: #2f6b5f;
+    --scrim: rgba(20, 24, 15, 0.48);
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --page: #dfe9d6;
+    --surface: #fbfaf5;
+    --surface-2: #f0eee4;
+    --ink: #17170f;
+    --ink-secondary: #4d4c3f;
+    --muted: #7d7c6d;
+    --line: #17170f;
+    --line-soft: #d6d3c4;
+    --accent: #1d6f7d;
+    --accent-ink: #ffffff;
+    --accent-soft: #d5e9ec;
+    --block-shadow: #17170f;
+    --warning-soft: #fbeccd;
+    --warning-ink: #6b4a05;
+    --critical: #c0392b;
+    --critical-soft: #f7dcd8;
+    --critical-ink: #7a1f1f;
+    --sky-top: #6fb2e6;
+    --sky-bottom: #b8dcf2;
+    --sun: #ffe98a;
+    --cloud: #ffffff;
+    --mountain-far: #6d84a3;
+    --mountain-near: #4f6480;
+    --grass: #6aab3c;
+    --grass-dark: #4d8c2a;
+    --dirt: #8b6141;
+    --dirt-dark: #6f4c33;
+    --stone: #8d8d86;
+    --stone-dark: #6b6b64;
+    --water: #3f7fd6;
+    --water-light: #6fa8ea;
+    --water-foam: #dceaf8;
+    --lava: #ef6f2b;
+    --lava-bright: #ffc23d;
+    --smoke: #b9b4ad;
+    --dino: #35766a;
+    --dino-dark: #24564d;
+    --scrim: rgba(223, 233, 214, 0.30);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- The Overworld behind everything ----
+     The landscape is anchored to the bottom and scales with viewport width,
+     so it reads as a horizon rather than being blown up to fill the screen.
+     Sky above it is the container's own gradient. */
+  .scene {
+    position: fixed; inset: 0; z-index: -2; overflow: hidden;
+    background: linear-gradient(to bottom, var(--sky-top), var(--sky-bottom));
+  }
+  .scene svg {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; height: auto; display: block;
+  }
+  .scene-scrim { position: fixed; inset: 0; z-index: -1; background: var(--scrim); }
+
+  @keyframes fall { from { transform: translateY(0); } to { transform: translateY(16px); } }
+  @keyframes drift { from { transform: translateX(0); } to { transform: translateX(26px); } }
+  @keyframes flicker { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
+  @keyframes rise { from { transform: translateY(0); opacity: 0.55; } to { transform: translateY(-22px); opacity: 0; } }
+  @keyframes swim { from { transform: translateX(-4px); } to { transform: translateX(36px); } }
+  @keyframes bob  { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+
+  .water-fall { animation: fall 1.1s linear infinite; }
+  .cloud-drift { animation: drift 22s linear infinite alternate; }
+  .lava-glow { animation: flicker 2.4s ease-in-out infinite; }
+  .smoke-puff { animation: rise 6s linear infinite; }
+  .smoke-puff:nth-of-type(2) { animation-delay: 2s; }
+  .smoke-puff:nth-of-type(3) { animation-delay: 4s; }
+  .plesio { animation: swim 19s ease-in-out infinite alternate; }
+  .plesio-bob { animation: bob 3.4s ease-in-out infinite; }
+
+  /* ---- Blocky UI primitives ---- */
+  .block {
+    background: var(--surface);
+    border: 3px solid var(--line);
+    box-shadow: 4px 4px 0 var(--block-shadow);
+  }
+
+  .shell { max-width: 480px; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+  .hidden { display: none !important; }
+
+  /* ---- Login ---- */
+  #login-view {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; gap: 1.25rem; text-align: center;
+  }
+  .login-card { padding: 2rem 1.75rem; max-width: 22rem; }
+  #login-view h1 { font-size: 1.5rem; margin: 0 0 0.5rem; letter-spacing: -0.01em; }
+  #login-view p { color: var(--ink-secondary); margin: 0 0 1.5rem; font-size: 0.95rem; }
+  .btn-google {
+    display: inline-flex; align-items: center; gap: 0.6rem; justify-content: center;
+    background: var(--accent); color: var(--accent-ink);
+    border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+    padding: 0.8rem 1.4rem; font-weight: 700; width: 100%;
+  }
+  .btn-google:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--block-shadow); }
+
+  /* ---- Header ---- */
+  header.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; }
+  header.topbar h1 {
+    font-size: 1.05rem; margin: 0; letter-spacing: 0.02em; text-transform: uppercase;
+    background: var(--surface); border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+    padding: 0.4rem 0.75rem;
+  }
+  .icon-btn {
+    background: var(--surface-2); border: 3px solid var(--line); color: var(--ink-secondary);
+    padding: 0.4rem 0.7rem; font-size: 0.8rem; font-weight: 600; box-shadow: 3px 3px 0 var(--block-shadow);
+  }
+  .icon-btn:hover { background: var(--accent); color: var(--accent-ink); }
+
+  /* ---- Hero stat ---- */
+  .hero { padding: 1.5rem 1.25rem; margin-bottom: 1rem; text-align: center; }
+  .hero .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; }
+  .hero .value {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 3.4rem; font-weight: 700; margin: 0.25rem 0; line-height: 1;
+    font-variant-numeric: tabular-nums; color: var(--accent);
+  }
+  .hero .sub { font-size: 0.85rem; color: var(--ink-secondary); }
+
+  /* ---- Banners ---- */
+  .connection-banner {
+    background: var(--warning-soft); color: var(--warning-ink);
+    border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+    padding: 0.7rem 0.9rem; font-size: 0.85rem; margin-bottom: 1rem; text-align: center;
+  }
+  .connection-banner.is-error { background: var(--critical-soft); color: var(--critical-ink); }
+
+  .banner {
+    display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.85rem 1rem;
+    margin-bottom: 1rem; font-size: 0.9rem;
+    border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+  }
+  .banner.warning { background: var(--warning-soft); color: var(--warning-ink); }
+  .banner.critical { background: var(--critical-soft); color: var(--critical-ink); }
+  .banner .bicon { flex: 0 0 auto; font-weight: 700; }
+  .banner strong { display: block; margin-bottom: 0.15rem; }
+
+  /* ---- Buttons ---- */
+  .quick-add { display: flex; gap: 0.7rem; margin-bottom: 1rem; }
+  .btn-primary {
+    flex: 1; background: var(--accent); color: var(--accent-ink);
+    border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+    padding: 0.95rem 1rem; font-weight: 700; font-size: 0.95rem;
+  }
+  .btn-secondary {
+    background: var(--surface); color: var(--ink);
+    border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+    padding: 0.95rem 1rem; font-weight: 700;
+  }
+  .btn-primary:active, .btn-secondary:active, .icon-btn:active {
+    transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--block-shadow);
+  }
+  .btn-primary:disabled, .btn-secondary:disabled {
+    opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 var(--block-shadow);
+  }
+
+  /* ---- Cards ---- */
+  section.card { padding: 1.1rem 1.1rem 1.25rem; margin-bottom: 1rem; }
+  section.card h2 {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted);
+    margin: 0 0 0.9rem; font-weight: 700;
+  }
+
+  /* ---- Segmented control ---- */
+  .seg { display: inline-flex; border: 3px solid var(--line); box-shadow: 3px 3px 0 var(--block-shadow); }
+  .seg button {
+    border: 0; border-right: 3px solid var(--line); background: var(--surface-2);
+    color: var(--ink-secondary); padding: 0.4rem 0.8rem; font-size: 0.8rem; font-weight: 700;
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  .graph-controls { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .weeks-stepper { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--ink-secondary); }
+  .weeks-stepper input { width: 3.4rem; border: 3px solid var(--line); padding: 0.25rem 0.4rem; background: var(--surface-2); color: var(--ink); text-align: center; }
+
+  /* ---- Chart ---- */
+  .chart-wrap { position: relative; }
+  svg.chart { width: 100%; height: auto; overflow: visible; }
+  .chart-empty { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 2rem 0; }
+  .chart-tooltip {
+    position: absolute; pointer-events: none; background: var(--ink); color: var(--surface);
+    font-size: 0.75rem; padding: 0.3rem 0.5rem; border: 2px solid var(--line);
+    transform: translate(-50%, -120%); white-space: nowrap; opacity: 0; transition: opacity 0.1s;
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-tooltip.show { opacity: 1; }
+
+  /* ---- Entries ---- */
+  .entry {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.75rem; align-items: start;
+    padding: 0.85rem 0.5rem; border-bottom: 2px solid var(--line-soft); cursor: pointer;
+  }
+  .entry:hover { background: var(--surface-2); }
+  .entry:last-child { border-bottom: none; }
+  .entry .etype {
+    display: inline-block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 0.15rem 0.45rem; margin-bottom: 0.35rem;
+    border: 2px solid var(--line);
+  }
+  .etype.period_start { background: var(--accent); color: var(--accent-ink); }
+  .etype.period_end { background: var(--surface-2); color: var(--ink-secondary); }
+  .etype.note { background: var(--warning-soft); color: var(--warning-ink); }
+  .entry .edate { font-weight: 700; font-size: 0.9rem; }
+  .entry .enote { color: var(--ink-secondary); font-size: 0.85rem; margin-top: 0.2rem; }
+  .entry .eedit {
+    color: var(--accent); font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; border: 2px solid var(--accent); padding: 0.2rem 0.5rem;
+    white-space: nowrap; align-self: center;
+  }
+  .entry:hover .eedit, .entry:focus-visible .eedit { background: var(--accent); color: var(--accent-ink); }
+  .empty-state { color: var(--muted); font-size: 0.88rem; text-align: center; padding: 1.5rem 0; }
+
+  /* ---- Edit sheet ---- */
+  .sheet-backdrop {
+    position: fixed; inset: 0; background: rgba(5, 6, 10, 0.55); display: flex;
+    align-items: flex-end; justify-content: center; z-index: 50; padding: 1rem;
+  }
+  #dialog-backdrop { align-items: center; z-index: 60; }
+  .sheet {
+    background: var(--surface); width: 100%; max-width: 480px;
+    border: 3px solid var(--line); border-bottom: none; padding: 1.25rem 1.25rem 2rem;
+  }
+  .sheet h3 { margin: 0 0 1rem; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .field { margin-bottom: 0.9rem; }
+  .field label { display: block; font-size: 0.7rem; color: var(--muted); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+  .field input[type="date"], .field input[type="time"], .field textarea, .field select {
+    width: 100%; border: 3px solid var(--line); padding: 0.6rem 0.7rem;
+    background: var(--surface-2); color: var(--ink);
+  }
+  .field textarea { min-height: 4.5rem; resize: vertical; }
+  .field-row { display: flex; gap: 0.6rem; }
+  .field-row .field { flex: 1; }
+  .day-nudge { display: flex; gap: 0.5rem; margin: -0.2rem 0 1rem; }
+  .btn-nudge {
+    flex: 1; background: var(--surface-2); color: var(--ink);
+    border: 3px solid var(--line); box-shadow: 3px 3px 0 var(--block-shadow);
+    padding: 0.55rem 0.4rem; font-size: 0.82rem; font-weight: 700;
+  }
+  .btn-nudge:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--block-shadow); }
+
+  .dialog { max-width: 26rem; border-bottom: 3px solid var(--line); }
+  .sheet.dialog { align-self: center; }
+  .dialog-body { margin: 0; font-size: 0.92rem; color: var(--ink-secondary); }
+
+  .sheet-actions { display: flex; gap: 0.6rem; margin-top: 1.1rem; align-items: stretch; }
+  .sheet-actions .btn-primary { flex: 1; }
+  .btn-danger {
+    background: var(--critical-soft); color: var(--critical-ink);
+    border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+    font-weight: 700; padding: 0.95rem 0.9rem;
+  }
+  .btn-danger:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--block-shadow); }
+
+  /* ---- Settings ---- */
+  .settings-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.6rem 0; border-top: 2px solid var(--line-soft); }
+  .settings-row:first-child { border-top: none; }
+  .settings-row span.k { font-size: 0.88rem; }
+  .settings-row span.v { font-size: 0.95rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .settings-row input[type="number"] { width: 5rem; border: 3px solid var(--line); padding: 0.35rem 0.5rem; background: var(--surface-2); color: var(--ink); text-align: right; }
+  .settings-hint { font-size: 0.78rem; color: var(--muted); margin-top: 0.6rem; }
+
+  /* ---- Export ---- */
+  .export-row { display: flex; gap: 0.7rem; }
+  .export-row button { flex: 1; }
+
+  /* ---- Toast ---- */
+  #toast {
+    position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%) translateY(10px);
+    background: var(--ink); color: var(--surface); padding: 0.6rem 1rem;
+    border: 3px solid var(--line); font-size: 0.85rem; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 100;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ──────────────────────────────────────────────────────────────────
+     Desktop. Below 900px this stays the single phone column it was
+     designed as; above it, the column becomes two so a laptop isn't
+     just a phone screen with empty space either side.
+     ────────────────────────────────────────────────────────────────── */
+  @media (min-width: 900px) {
+    .shell { max-width: 62rem; padding: 2rem 1.5rem 4rem; }
+    /* Named areas rather than per-item columns: auto-placement won't
+       backtrack, so column 2 used to start level with the quick-add row and
+       leave a hole beside the hero. */
+    #app-view {
+      display: grid;
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      grid-template-areas:
+        "head  head"
+        "conn  conn"
+        "flag  flag"
+        "hero  log"
+        "quick log"
+        "trend log"
+        "avg   exp";
+      gap: 1.25rem;
+      align-items: start;
+    }
+    header.topbar    { grid-area: head; }
+    #connection-banner { grid-area: conn; }
+    #flag-banner-slot  { grid-area: flag; }
+    .hero            { grid-area: hero; }
+    .quick-add       { grid-area: quick; }
+    #trend-card      { grid-area: trend; }
+    #log-card        { grid-area: log; }
+    #average-card    { grid-area: avg; }
+    #export-card     { grid-area: exp; }
+
+    #flag-banner-slot:empty { display: none; }
+    .hero, .quick-add, section.card { margin-bottom: 0; }
+    .hero .value { font-size: 4.5rem; }
+    header.topbar h1 { font-size: 1.15rem; }
+    #log-card { max-height: 34rem; overflow-y: auto; }
+  }
+
+  /* ---- Print report ---- */
+  #report-view { display: none; }
+  @media print {
+    body * { visibility: hidden; }
+    .scene, .scene-scrim { display: none; }
+    #report-view, #report-view * { visibility: visible; }
+    #report-view { display: block; position: absolute; top: 0; left: 0; width: 100%; padding: 0; }
+    .no-print { display: none !important; }
+  }
+  #report-view { padding: 1.5rem; color: #17170f; background: #fff; }
+  #report-view h1 { font-size: 1.3rem; margin: 0 0 0.15rem; }
+  #report-view .meta { color: #4d4c3f; font-size: 0.85rem; margin-bottom: 1.25rem; }
+  #report-view .stats { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
+  #report-view .stat .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #4d4c3f; }
+  #report-view .stat .v { font-size: 1.4rem; font-weight: 700; }
+  #report-view table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  #report-view th, #report-view td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid #d6d3c4; }
+  #report-view th { color: #4d4c3f; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, .water-fall, .cloud-drift, .lava-glow, .smoke-puff, .plesio, .plesio-bob {
+      transition: none !important; animation: none !important;
+    }
+  }
+
+  /* ---- Flyer-specific ---- */
+  .flyer { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  .flyer-head { padding: 1.5rem 1.25rem; margin-bottom: 1rem; text-align: center; }
+  .flyer-head h1 { margin: 0 0 0.4rem; font-size: 1.7rem; letter-spacing: -0.01em; }
+  .flyer-head p { margin: 0; color: var(--ink-secondary); font-size: 0.95rem; }
+
+  .step { padding: 1.15rem 1.15rem 1.25rem; margin-bottom: 1rem; }
+  .step-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.6rem; }
+  .step-num {
+    flex: 0 0 auto; width: 2rem; height: 2rem; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink); border: 3px solid var(--line);
+    font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .step-head h2 {
+    margin: 0; font-size: 1rem; text-transform: none; letter-spacing: 0;
+    color: var(--ink); font-weight: 700;
+  }
+  .step p { margin: 0 0 0.6rem; font-size: 0.94rem; color: var(--ink-secondary); }
+  .step p:last-child { margin-bottom: 0; }
+  .step strong { color: var(--ink); }
+
+  .demo-btn {
+    display: inline-block; background: var(--accent); color: var(--accent-ink);
+    border: 3px solid var(--line); box-shadow: 3px 3px 0 var(--block-shadow);
+    padding: 0.5rem 0.8rem; font-weight: 700; font-size: 0.88rem; margin: 0.2rem 0.3rem 0.4rem 0;
+  }
+  .demo-btn.plain { background: var(--surface); color: var(--ink); }
+  .demo-chip {
+    display: inline-block; font-size: 0.66rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 0.18rem 0.5rem; border: 2px solid var(--line);
+    background: var(--accent); color: var(--accent-ink); margin-right: 0.3rem;
+  }
+  .demo-chip.end { background: var(--surface-2); color: var(--ink-secondary); }
+  .demo-chip.note { background: var(--warning-soft); color: var(--warning-ink); }
+
+  .tip {
+    background: var(--warning-soft); color: var(--warning-ink);
+    border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+    padding: 0.85rem 1rem; font-size: 0.9rem; margin-bottom: 1rem;
+  }
+  .tip strong { display: block; margin-bottom: 0.2rem; }
+
+  .flyer-foot {
+    padding: 1.15rem; text-align: center; font-size: 0.9rem; color: var(--ink-secondary);
+  }
+  .flyer-foot a { color: var(--accent); font-weight: 700; }
+  .open-app {
+    display: inline-block; background: var(--accent); color: var(--accent-ink);
+    border: 3px solid var(--line); box-shadow: 4px 4px 0 var(--block-shadow);
+    padding: 0.8rem 1.4rem; font-weight: 700; text-decoration: none; margin-top: 0.6rem;
+  }
+  .open-app:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--block-shadow); }
+</style>
+</head>
+<body>
+
+<div class="scene" aria-hidden="true">
+  <svg viewBox="0 0 960 420" preserveAspectRatio="xMidYMax meet" shape-rendering="crispEdges">
+    <defs>
+      <clipPath id="fallClip"><rect x="96" y="212" width="56" height="140"/></clipPath>
+      <clipPath id="volcanoClip"><rect x="700" y="196" width="240" height="144"/></clipPath>
+    </defs>
+
+    <!-- sun, out near the right margin where content rarely reaches -->
+    <rect x="862" y="40" width="36" height="36" fill="var(--sun)"/>
+    <rect x="852" y="50" width="56" height="16" fill="var(--sun)"/>
+    <rect x="872" y="30" width="16" height="56" fill="var(--sun)"/>
+
+    <g class="cloud-drift" opacity="0.9" fill="var(--cloud)">
+      <rect x="40"  y="70"  width="64" height="14"/>
+      <rect x="58"  y="56"  width="34" height="14"/>
+      <rect x="292" y="44"  width="54" height="14"/>
+      <rect x="306" y="30"  width="26" height="14"/>
+      <rect x="660" y="96"  width="46" height="14"/>
+      <rect x="674" y="82"  width="22" height="14"/>
+    </g>
+
+    <!-- ── mountain range: stepped pyramids ── -->
+    <g fill="var(--mountain-far)">
+      <rect x="420" y="316" width="180" height="24"/>
+      <rect x="436" y="292" width="148" height="24"/>
+      <rect x="452" y="268" width="116" height="24"/>
+      <rect x="468" y="244" width="84"  height="24"/>
+      <rect x="484" y="220" width="52"  height="24"/>
+      <rect x="500" y="202" width="20"  height="18"/>
+
+      <rect x="240" y="316" width="180" height="24"/>
+      <rect x="258" y="292" width="144" height="24"/>
+      <rect x="276" y="268" width="108" height="24"/>
+      <rect x="294" y="248" width="72"  height="20"/>
+      <rect x="312" y="232" width="36"  height="16"/>
+
+      <rect x="570" y="316" width="130" height="24"/>
+      <rect x="582" y="292" width="106" height="24"/>
+      <rect x="594" y="272" width="82"  height="20"/>
+      <rect x="606" y="256" width="58"  height="16"/>
+    </g>
+    <g fill="var(--cloud)" opacity="0.8">
+      <rect x="500" y="202" width="20" height="10"/>
+      <rect x="490" y="212" width="40" height="8"/>
+      <rect x="312" y="232" width="36" height="8"/>
+    </g>
+    <g fill="var(--mountain-near)">
+      <rect x="330" y="316" width="120" height="24"/>
+      <rect x="346" y="298" width="88"  height="18"/>
+      <rect x="362" y="284" width="56"  height="14"/>
+      <rect x="600" y="316" width="110" height="24"/>
+      <rect x="614" y="300" width="82"  height="16"/>
+    </g>
+
+    <!-- ── waterfall (left): grass-capped stone ledges, not a wall ── -->
+    <g fill="var(--stone)">
+      <rect x="0"   y="204" width="96" height="136"/>
+      <rect x="0"   y="176" width="52" height="28"/>
+      <rect x="152" y="224" width="56" height="116"/>
+    </g>
+    <g fill="var(--stone-dark)">
+      <rect x="84"  y="204" width="12" height="136"/>
+      <rect x="152" y="224" width="12" height="116"/>
+      <rect x="16"  y="228" width="14" height="14"/>
+      <rect x="40"  y="272" width="14" height="14"/>
+      <rect x="12"  y="312" width="14" height="14"/>
+      <rect x="180" y="252" width="14" height="14"/>
+      <rect x="186" y="300" width="14" height="14"/>
+    </g>
+    <!-- grass caps: the thing that makes stone read as terrain -->
+    <g fill="var(--grass)">
+      <rect x="0"   y="168" width="52" height="8"/>
+      <rect x="52"  y="196" width="44" height="8"/>
+      <rect x="152" y="216" width="56" height="8"/>
+    </g>
+    <g fill="var(--grass-dark)">
+      <rect x="0"   y="174" width="52" height="3"/>
+      <rect x="52"  y="202" width="44" height="3"/>
+      <rect x="152" y="222" width="56" height="3"/>
+    </g>
+
+    <!-- the fall itself -->
+    <rect x="96" y="196" width="56" height="16" fill="var(--water-light)"/>
+    <rect x="96" y="212" width="56" height="140" fill="var(--water)"/>
+    <g clip-path="url(#fallClip)">
+      <g class="water-fall">
+        <rect x="100" y="200" width="10" height="22" fill="var(--water-light)"/>
+        <rect x="122" y="216" width="10" height="26" fill="var(--water-light)"/>
+        <rect x="138" y="206" width="10" height="18" fill="var(--water-light)"/>
+        <rect x="100" y="248" width="10" height="22" fill="var(--water-light)"/>
+        <rect x="122" y="264" width="10" height="26" fill="var(--water-light)"/>
+        <rect x="138" y="254" width="10" height="18" fill="var(--water-light)"/>
+        <rect x="100" y="296" width="10" height="22" fill="var(--water-light)"/>
+        <rect x="122" y="312" width="10" height="26" fill="var(--water-light)"/>
+        <rect x="138" y="302" width="10" height="18" fill="var(--water-light)"/>
+      </g>
+    </g>
+
+    <!-- oak on the clifftop -->
+    <rect x="20" y="144" width="10" height="26" fill="var(--dirt-dark)"/>
+    <g fill="var(--grass-dark)">
+      <rect x="2"  y="120" width="46" height="26"/>
+      <rect x="10" y="112" width="30" height="10"/>
+    </g>
+    <g fill="var(--grass)">
+      <rect x="8"  y="124" width="14" height="10"/>
+      <rect x="30" y="132" width="12" height="8"/>
+    </g>
+
+    <!-- ── volcano (right) ── -->
+    <g fill="var(--stone-dark)">
+      <rect x="700" y="316" width="240" height="24"/>
+      <rect x="716" y="292" width="208" height="24"/>
+      <rect x="732" y="268" width="176" height="24"/>
+      <rect x="748" y="244" width="144" height="24"/>
+      <rect x="764" y="220" width="112" height="24"/>
+      <rect x="780" y="196" width="80"  height="24"/>
+    </g>
+    <g fill="var(--stone)">
+      <rect x="700" y="316" width="26" height="24"/>
+      <rect x="716" y="292" width="24" height="24"/>
+      <rect x="732" y="268" width="22" height="24"/>
+      <rect x="748" y="244" width="20" height="24"/>
+      <rect x="764" y="220" width="18" height="24"/>
+      <rect x="780" y="196" width="16" height="24"/>
+    </g>
+    <rect x="780" y="188" width="80" height="10" fill="var(--lava-bright)" class="lava-glow"/>
+    <g clip-path="url(#volcanoClip)" class="lava-glow">
+      <rect x="812" y="196" width="18" height="30" fill="var(--lava)"/>
+      <rect x="824" y="220" width="18" height="30" fill="var(--lava)"/>
+      <rect x="812" y="244" width="18" height="30" fill="var(--lava)"/>
+      <rect x="826" y="268" width="18" height="34" fill="var(--lava)"/>
+      <rect x="814" y="296" width="18" height="30" fill="var(--lava)"/>
+      <rect x="832" y="200" width="10" height="22" fill="var(--lava-bright)"/>
+      <rect x="818" y="272" width="10" height="24" fill="var(--lava-bright)"/>
+    </g>
+    <rect x="792" y="320" width="56" height="20" fill="var(--lava)" class="lava-glow"/>
+    <g fill="var(--smoke)">
+      <rect class="smoke-puff" x="804" y="160" width="20" height="18"/>
+      <rect class="smoke-puff" x="824" y="138" width="16" height="16"/>
+      <rect class="smoke-puff" x="796" y="122" width="24" height="16"/>
+    </g>
+
+    <!-- ── ground ── -->
+    <rect x="0" y="340" width="960" height="18" fill="var(--grass)"/>
+    <rect x="0" y="358" width="960" height="62" fill="var(--dirt)"/>
+    <g fill="var(--grass-dark)">
+      <rect x="0"   y="354" width="960" height="4"/>
+      <rect x="44"  y="340" width="14" height="18"/>
+      <rect x="288" y="340" width="14" height="18"/>
+      <rect x="556" y="340" width="14" height="18"/>
+      <rect x="904" y="340" width="14" height="18"/>
+    </g>
+    <g fill="var(--dirt-dark)">
+      <rect x="88"  y="376" width="22" height="22"/>
+      <rect x="252" y="398" width="26" height="22"/>
+      <rect x="446" y="372" width="22" height="22"/>
+      <rect x="640" y="400" width="26" height="20"/>
+      <rect x="820" y="376" width="22" height="22"/>
+      <rect x="360" y="392" width="18" height="18"/>
+    </g>
+    <!-- oaks on the plain -->
+    <g>
+      <rect x="406" y="314" width="10" height="26" fill="var(--dirt-dark)"/>
+      <rect x="388" y="290" width="46" height="26" fill="var(--grass-dark)"/>
+      <rect x="396" y="282" width="30" height="10" fill="var(--grass-dark)"/>
+      <rect x="394" y="294" width="14" height="10" fill="var(--grass)"/>
+    </g>
+    <g>
+      <rect x="632" y="318" width="8"  height="22" fill="var(--dirt-dark)"/>
+      <rect x="618" y="298" width="38" height="22" fill="var(--grass-dark)"/>
+      <rect x="626" y="292" width="22" height="8"  fill="var(--grass-dark)"/>
+      <rect x="622" y="302" width="12" height="8"  fill="var(--grass)"/>
+    </g>
+
+    <!-- the lake the waterfall feeds -->
+    <rect x="60" y="340" width="268" height="34" fill="var(--water)"/>
+    <rect x="60" y="340" width="268" height="7"  fill="var(--water-light)"/>
+    <!-- spray where the fall hits -->
+    <g fill="var(--water-foam)" class="lava-glow">
+      <rect x="78"  y="334" width="16" height="9"/>
+      <rect x="112" y="340" width="16" height="7"/>
+      <rect x="148" y="334" width="16" height="9"/>
+    </g>
+
+    <!-- ── Mary's plesiosaur, cruising the lake ── -->
+    <g class="plesio">
+      <g class="plesio-bob">
+        <!-- wake -->
+        <g fill="var(--water-foam)" opacity="0.6">
+          <rect x="166" y="348" width="22" height="4"/>
+          <rect x="258" y="350" width="18" height="4"/>
+        </g>
+        <!-- flippers, behind the body -->
+        <g fill="var(--dino-dark)">
+          <rect x="204" y="346" width="22" height="8"/>
+          <rect x="234" y="346" width="18" height="6"/>
+        </g>
+        <!-- tail, body, neck, head -->
+        <g fill="var(--dino)">
+          <rect x="176" y="336" width="20" height="10"/>
+          <rect x="192" y="328" width="64" height="20"/>
+          <rect x="204" y="322" width="42" height="8"/>
+          <rect x="242" y="292" width="15" height="38"/>
+          <rect x="250" y="284" width="30" height="13"/>
+        </g>
+        <!-- shading down the near side -->
+        <g fill="var(--dino-dark)">
+          <rect x="192" y="342" width="64" height="6"/>
+          <rect x="204" y="322" width="14" height="8"/>
+          <rect x="242" y="292" width="5"  height="38"/>
+        </g>
+        <rect x="268" y="287" width="6" height="6" fill="var(--line)"/>
+      </g>
+    </g>
+  </svg>
+</div>
+<div class="scene-scrim" aria-hidden="true"></div>
+
+<div class="flyer">
+
+  <div class="flyer-head block">
+    <h1>Your Cycle Tracker</h1>
+    <p>Everything it does, on one page. It only ever needs two taps.</p>
+  </div>
+
+  <section class="step block">
+    <div class="step-head"><span class="step-num">1</span><h2>Log the day your period starts</h2></div>
+    <p>Open the app and tap <span class="demo-btn">+ Log start date</span></p>
+    <p>It fills in today for you. Tap <strong>Save</strong> and you're done — that's the whole thing.</p>
+  </section>
+
+  <section class="step block">
+    <div class="step-head"><span class="step-num">2</span><h2>Log the day it ends</h2></div>
+    <p>Tap <span class="demo-btn plain">Other</span>, change <strong>Type</strong> to <strong>Period end</strong>, and Save.</p>
+    <p>This is optional. The app still works if you only ever log start dates — ends just make the picture more complete.</p>
+  </section>
+
+  <section class="step block">
+    <div class="step-head"><span class="step-num">3</span><h2>Fix anything, any time</h2></div>
+    <p>Tap any row in the <strong>Log</strong> to change it. Every field can be edited — the date, the time, the type, the notes.</p>
+    <p>If the date is just a day or two off, use the <strong>− 1 day</strong> and <strong>+ 1 day</strong> buttons instead of fighting the date picker.</p>
+    <p>Wrong entry entirely? <strong>Delete</strong> is right there in the same window.</p>
+  </section>
+
+  <section class="step block">
+    <div class="step-head"><span class="step-num">4</span><h2>Read the big number</h2></div>
+    <p>The number at the top counts the days since your most recent entry, and the label tells you what it's counting from — <em>days since period started</em>, or <em>ended</em>.</p>
+    <p>While a period is running, a second line shows <strong>Day 3 of this period</strong>, and so on. It disappears once you log the end.</p>
+  </section>
+
+  <section class="step block">
+    <div class="step-head"><span class="step-num">5</span><h2>Watch the pattern build</h2></div>
+    <p>After two start dates, the <strong>Trend</strong> graph appears and <strong>Your average</strong> starts calculating. Switch the graph between <strong>Weeks</strong>, <strong>Months</strong> and <strong>Year</strong>.</p>
+    <p>The average updates itself after every cycle. If you'd rather set it by hand, type a number into <strong>Manual override</strong> — leave it blank to go back to automatic.</p>
+  </section>
+
+  <section class="step block">
+    <div class="step-head"><span class="step-num">6</span><h2>Take it to a doctor</h2></div>
+    <p><strong>Download CSV</strong> gives you the raw log as a spreadsheet. <strong>Report</strong> makes a clean printable page with your dates, counts and average — good to print or save as a PDF.</p>
+  </section>
+
+  <div class="tip">
+    <strong>You'll hear from it when something looks off</strong>
+    If a cycle runs noticeably longer or shorter than your own usual pattern, a gentle note appears at the top. It's just flagging, never diagnosing — and it waits until it has enough of your history to know what "usual" means for you.
+  </div>
+
+  <div class="tip">
+    <strong>A quick note on entry types</strong>
+    <span class="demo-chip">Start</span> begins a period, <span class="demo-chip end">End</span> closes it, and <span class="demo-chip note">Note</span> is for anything else worth remembering. If you save an End with no Start before it, the app will say so — it just means a date is off or a start hasn't been logged yet. You can save it anyway.
+  </div>
+
+  <div class="flyer-foot block">
+    <p style="margin:0 0 0.2rem">Only you and Roger can open this. It's signed in with your Google account, and nobody else can reach the data.</p>
+    <a class="open-app" href="index.html">Open the tracker</a>
+  </div>
+
+</div>
+</body>
+</html>

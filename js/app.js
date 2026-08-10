@@ -194,6 +194,23 @@ function daysSince(date) {
   return Math.floor((Date.now() - date.getTime()) / 86400000);
 }
 
+// Would a period_end at this moment have no period_start to close? Walks the
+// log in order and tracks whether a period is open at that point in time,
+// ignoring the entry being edited so re-saving it doesn't flag itself.
+function isOrphanedEnd(occurredAtIso, excludeId) {
+  const at = new Date(occurredAtIso);
+  const earlier = state.entries
+    .filter((e) => e.id !== excludeId && new Date(e.occurred_at) <= at)
+    .sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at));
+
+  let open = false;
+  for (const e of earlier) {
+    if (e.entry_type === 'period_start') open = true;
+    else if (e.entry_type === 'period_end') open = false;
+  }
+  return !open;
+}
+
 // The start of a period that is still running — i.e. the most recent
 // period_start with no period_end logged after it. Returns null once the
 // period has been closed out, which is what suppresses the "Day N" line.
@@ -319,19 +336,24 @@ function renderEntries() {
     return;
   }
   list.innerHTML = sorted.map((e) => `
-    <div class="entry" data-id="${e.id}">
+    <div class="entry" data-id="${e.id}" role="button" tabindex="0"
+         aria-label="Edit ${typeLabel(e.entry_type)} on ${formatDate(e.occurred_at)}">
       <div>
         <span class="etype ${e.entry_type}">${typeLabel(e.entry_type)}</span>
         <div class="edate">${formatDate(e.occurred_at)}</div>
         ${e.notes ? `<div class="enote">${escapeHTML(e.notes)}</div>` : ''}
       </div>
-      <div class="echevron" aria-hidden="true">&#8250;</div>
+      <div class="eedit" aria-hidden="true">Edit</div>
     </div>
   `).join('');
   list.querySelectorAll('.entry').forEach((el) => {
-    el.addEventListener('click', () => {
+    const edit = () => {
       const entry = state.entries.find((e) => e.id === el.dataset.id);
       if (entry) openSheet(entry, true);
+    };
+    el.addEventListener('click', edit);
+    el.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); edit(); }
     });
   });
 }
@@ -479,6 +501,13 @@ function openSheet(entry, isExisting) {
             <input type="time" id="f-time" value="${toTimeInputValue(d)}">
           </div>
         </div>
+        <!-- Getting the day wrong is the most common correction, so make it
+             one tap rather than a trip through the date picker. -->
+        <div class="day-nudge">
+          <button type="button" id="f-day-minus" class="btn-nudge">− 1 day</button>
+          <button type="button" id="f-day-today" class="btn-nudge">Today</button>
+          <button type="button" id="f-day-plus" class="btn-nudge">+ 1 day</button>
+        </div>
         <div class="field">
           <label for="f-notes">Notes (optional)</label>
           <textarea id="f-notes">${escapeHTML(entry.notes || '')}</textarea>
@@ -497,14 +526,40 @@ function openSheet(entry, isExisting) {
   });
   document.getElementById('f-cancel').addEventListener('click', closeSheet);
 
+  const dateInput = document.getElementById('f-date');
+  const nudgeDay = (delta) => {
+    const base = dateInput.value ? new Date(`${dateInput.value}T12:00`) : new Date();
+    base.setDate(base.getDate() + delta);
+    dateInput.value = toDateInputValue(base);
+  };
+  document.getElementById('f-day-minus').addEventListener('click', () => nudgeDay(-1));
+  document.getElementById('f-day-plus').addEventListener('click', () => nudgeDay(1));
+  document.getElementById('f-day-today').addEventListener('click', () => {
+    dateInput.value = toDateInputValue(new Date());
+  });
+
   document.getElementById('f-save').addEventListener('click', async () => {
     const entry_type = document.getElementById('f-type').value;
-    const dateVal = document.getElementById('f-date').value;
+    const dateVal = dateInput.value;
     const timeVal = document.getElementById('f-time').value || '00:00';
     const notes = document.getElementById('f-notes').value.trim();
     if (!dateVal) { showToast('Pick a date first.'); return; }
 
     const occurred_at = new Date(`${dateVal}T${timeVal}`).toISOString();
+
+    // A period end with no start open before it can't close anything. That's
+    // usually a mistyped date or a missing start — worth saying out loud
+    // rather than silently accepting.
+    if (entry_type === 'period_end' &&
+        isOrphanedEnd(occurred_at, isExisting ? entry.id : null)) {
+      const proceed = await confirmDialog(
+        'No period is open on that date',
+        "There's no period start before this end date, so there's nothing for it to close. " +
+        'That usually means the date is off by a bit, or the matching start date hasn\'t been logged yet.',
+        'Save it anyway');
+      if (!proceed) return;
+    }
+
     try {
       await saveEntry({ id: isExisting ? entry.id : undefined, occurred_at, entry_type, notes });
       closeSheet();
@@ -532,6 +587,33 @@ function openSheet(entry, isExisting) {
 
 function closeSheet() {
   document.getElementById('sheet-slot').innerHTML = '';
+}
+
+// A styled stand-in for window.confirm, so an explanation can be a paragraph
+// rather than a cramped one-liner in a browser chrome dialog.
+function confirmDialog(title, body, confirmLabel) {
+  return new Promise((resolve) => {
+    const slot = document.getElementById('dialog-slot');
+    slot.innerHTML = `
+      <div class="sheet-backdrop" id="dialog-backdrop">
+        <div class="sheet dialog" role="alertdialog" aria-labelledby="dlg-title">
+          <h3 id="dlg-title">${escapeHTML(title)}</h3>
+          <p class="dialog-body">${escapeHTML(body)}</p>
+          <div class="sheet-actions">
+            <button id="dlg-cancel" class="btn-secondary">Go back</button>
+            <button id="dlg-ok" class="btn-primary">${escapeHTML(confirmLabel)}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const done = (value) => { slot.innerHTML = ''; resolve(value); };
+    document.getElementById('dlg-ok').addEventListener('click', () => done(true));
+    document.getElementById('dlg-cancel').addEventListener('click', () => done(false));
+    document.getElementById('dialog-backdrop').addEventListener('click', (e) => {
+      if (e.target.id === 'dialog-backdrop') done(false);
+    });
+    document.getElementById('dlg-ok').focus();
+  });
 }
 
 function toDateInputValue(d) {

@@ -344,6 +344,130 @@ browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', a
   await p.close();
 }
 
+
+// ── 20. Orphaned period end explains itself ───────────────────────────
+{
+  const p = await open('empty');
+  await p.click('#log-other-btn');
+  await p.waitForTimeout(250);
+  await p.selectOption('#f-type', 'period_end');
+  await p.click('#f-save');
+  await p.waitForTimeout(300);
+  const dlg = await p.locator('.dialog').innerText().catch(() => '');
+  // innerText reflects the CSS text-transform on the heading, so match loosely.
+  check('orphan-end: dialog explains the problem',
+        /no period is open/i.test(dlg) && /nothing for it to close/i.test(dlg), dlg.slice(0, 60));
+  check('orphan-end: offers a way out', (await p.locator('#dlg-cancel').count()) === 1);
+  await p.click('#dlg-cancel');
+  await p.waitForTimeout(200);
+  check('orphan-end: cancelling saves nothing', (await p.locator('.entry').count()) === 0);
+
+  await p.click('#f-save');
+  await p.waitForTimeout(250);
+  await p.click('#dlg-ok');
+  await p.waitForTimeout(400);
+  check('orphan-end: can still save anyway', (await p.locator('.entry').count()) === 1);
+  await p.close();
+}
+
+// ── 21. A legitimate end raises no dialog ─────────────────────────────
+{
+  const p = await open('activePeriod');
+  await p.click('#log-other-btn');
+  await p.waitForTimeout(250);
+  await p.selectOption('#f-type', 'period_end');
+  await p.click('#f-save');
+  await p.waitForTimeout(400);
+  check('valid-end: no dialog when a period is open', (await p.locator('.dialog').count()) === 0);
+  check('valid-end: saved', (await txt(p, '#day-count-label')) === 'Days since period ended');
+  await p.close();
+}
+
+// ── 22. Day nudge buttons ─────────────────────────────────────────────
+{
+  const p = await open('manyCycles');
+  await p.click('.entry >> nth=0');
+  await p.waitForTimeout(250);
+  const before = await p.locator('#f-date').inputValue();
+  await p.click('#f-day-minus');
+  const minus = await p.locator('#f-date').inputValue();
+  check('nudge: −1 day moves the date back',
+        new Date(minus) - new Date(before) === -86400000, `${before} -> ${minus}`);
+  await p.click('#f-day-plus');
+  await p.click('#f-day-plus');
+  const plus = await p.locator('#f-date').inputValue();
+  check('nudge: +1 day moves it forward',
+        new Date(plus) - new Date(before) === 86400000, `${before} -> ${plus}`);
+  await p.click('#f-day-today');
+  const today = await p.locator('#f-date').inputValue();
+  const expected = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  check('nudge: Today jumps to today',
+        today === `${expected.getFullYear()}-${pad(expected.getMonth() + 1)}-${pad(expected.getDate())}`, today);
+  await p.close();
+}
+
+// ── 23. Entries are obviously editable, and keyboard-reachable ────────
+{
+  const p = await open('manyCycles');
+  check('edit affordance: rows show an Edit control', (await p.locator('.entry .eedit').count()) > 0);
+  check('edit affordance: rows are focusable',
+        (await p.locator('.entry').first().getAttribute('tabindex')) === '0');
+  await p.locator('.entry').first().focus();
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(250);
+  check('edit affordance: Enter opens the sheet', await p.locator('.sheet').isVisible());
+  await p.close();
+}
+
+// ── 24. How-to flyer ──────────────────────────────────────────────────
+{
+  const p = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/how-to.html`, { waitUntil: 'networkidle' });
+  await p.waitForTimeout(300);
+  check('flyer: loads without errors', errs.length === 0, errs.join('; '));
+  check('flyer: has all six steps', (await p.locator('.step').count()) === 6);
+  check('flyer: uses the same scene', (await p.locator('.plesio').count()) === 1);
+  check('flyer: links back to the app', (await p.locator('a[href="index.html"]').count()) >= 1);
+  const ov = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  check('flyer: no horizontal overflow on a phone', ov === 0, `${ov}px`);
+  await p.close();
+}
+
+// ── 25. Link preview metadata ─────────────────────────────────────────
+{
+  const p = await open('manyCycles');
+  const meta = await p.evaluate(() => {
+    const get = (sel) => document.querySelector(sel)?.getAttribute('content') || null;
+    return {
+      title: get('meta[property="og:title"]'),
+      image: get('meta[property="og:image"]'),
+      desc: get('meta[property="og:description"]'),
+      card: get('meta[name="twitter:card"]'),
+      w: get('meta[property="og:image:width"]'),
+    };
+  });
+  check('preview: og:title set', meta.title === "Mary's Cycle Tracker", String(meta.title));
+  check('preview: og:image is absolute https', /^https:\/\//.test(meta.image || ''), String(meta.image));
+  check('preview: og:description set', !!meta.desc);
+  check('preview: large twitter card', meta.card === 'summary_large_image');
+  check('preview: image dimensions declared', meta.w === '1200');
+  const res = await p.request.get(`http://localhost:${PORT}/icons/og-image.png`);
+  check('preview: image actually exists', res.status() === 200, `HTTP ${res.status()}`);
+  const len = (await res.body()).length;
+  check('preview: image small enough for WhatsApp', len < 300_000, `${Math.round(len / 1024)}KB`);
+  await p.close();
+}
+
+// ── 26. How-to is reachable from the app ──────────────────────────────
+{
+  const p = await open('manyCycles');
+  check('help link: present in the header', (await p.locator('.topbar-actions a[href="how-to.html"]').count()) === 1);
+  await p.close();
+}
+
 await browser.close();
 await cleanup();
 

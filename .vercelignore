@@ -3,5 +3,6 @@
 supabase/
 sql/
 js/cycleFlag.test.js
+test/
 README.md
 .github/

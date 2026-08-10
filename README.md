@@ -4,6 +4,8 @@ A private, single-user cycle tracker: a self-contained `index.html` (vanilla JS,
 no build step) backed by Supabase, in the spirit of DoingTheDoings.
 
 **Live:** https://actually-useful-cycle-tracker.vercel.app
+**How to use:** https://actually-useful-cycle-tracker.vercel.app/how-to.html — a
+one-page illustrated guide, linked from inside the app and shareable on its own.
 
 Deployed from `main` by Vercel. Sign-in is Google-only and restricted to the
 addresses in the `allowed_emails` table.
@@ -34,8 +36,9 @@ The end-to-end run drives the real `index.html` against a stand-in Supabase
 client (`test/mock-supabase.js`), so it needs no project, no network and no
 credentials. It covers logging, editing and deleting entries, the day counter
 in each of its states, the trend graph's three ranges, CSV and report export,
-the gentle out-of-range and long-gap banners, failure reporting, and the
-mobile and desktop layouts in both themes. Fixtures are generated relative to
+the gentle out-of-range and long-gap banners, failure reporting, the how-to
+flyer, the link-preview metadata, and the mobile and desktop layouts in both
+themes. Fixtures are generated relative to
 the current date, so the suite doesn't rot.
 
 ## Manual setup (do this once, outside this repo)
