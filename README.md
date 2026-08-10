@@ -3,6 +3,11 @@
 A private, single-user cycle tracker: a self-contained `index.html` (vanilla JS,
 no build step) backed by Supabase, in the spirit of DoingTheDoings.
 
+**Live:** https://actually-useful-cycle-tracker.vercel.app
+
+Deployed from `main` by Vercel. Sign-in is Google-only and restricted to the
+addresses in the `allowed_emails` table.
+
 ## Cycle anomaly detection
 
 `js/cycleFlag.js` is a pure, dependency-free function that decides whether a
@@ -85,6 +90,21 @@ of the deployed output — only the app itself (`index.html`, `manifest.json`,
 `Cache-Control: no-cache` so the service worker always re-checks for updates
 instead of getting stuck on a stale version behind Vercel's CDN.
 
-Once deployed, go back to Supabase (step 3) and set **Site URL** to the
-`*.vercel.app` URL Vercel gives you — Google OAuth redirects there after
-sign-in.
+### 6. Point Supabase back at the deployed URL
+
+This one is easy to miss and looks like a total failure when skipped: Supabase
+ships with **Site URL** defaulting to `http://localhost:3000`, so sign-in
+completes at Google and then redirects to a dead local address
+(`ERR_CONNECTION_REFUSED`).
+
+Under Authentication → URL Configuration:
+
+- **Site URL** → `https://actually-useful-cycle-tracker.vercel.app`
+- **Redirect URLs** → add `https://actually-useful-cycle-tracker.vercel.app/**`
+  (the `/**` wildcard matters — `app.js` passes the current page as
+  `redirectTo`, and Supabase silently falls back to Site URL for any target
+  not on this allow-list)
+
+If a sign-in attempt fails with `bad_oauth_state`, that's a stale attempt, not
+a config problem — start over from the app itself rather than re-opening an old
+Google URL.
