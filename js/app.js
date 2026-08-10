@@ -329,7 +329,10 @@ function renderGraph() {
 
   const data = filteredCycleData();
   if (data.length < 2) {
+    // Hide the <svg> outright rather than just emptying it — it keeps its
+    // viewBox aspect ratio otherwise, leaving a tall blank card.
     svg.innerHTML = '';
+    svg.classList.add('hidden');
     const empty = document.createElement('div');
     empty.className = 'chart-empty';
     empty.textContent = data.length === 0
@@ -338,6 +341,7 @@ function renderGraph() {
     wrap.appendChild(empty);
     return;
   }
+  svg.classList.remove('hidden');
 
   const W = 400, H = 200, padL = 30, padR = 12, padT = 16, padB = 22;
   const values = data.map((d) => d.lengthDays);

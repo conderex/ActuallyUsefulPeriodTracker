@@ -137,3 +137,16 @@ drop trigger if exists cycle_settings_set_updated_at on cycle_settings;
 create trigger cycle_settings_set_updated_at
   before update on cycle_settings
   for each row execute function set_updated_at();
+
+-- ── table privileges ────────────────────────────────────────────────────
+-- Postgres checks two separate layers, and BOTH must allow an operation:
+-- table-level privileges (GRANT) and row-level policies (RLS). The policies
+-- above decide WHICH ROWS a signed-in account may touch; without these
+-- grants the request is refused before any policy is consulted
+-- ("permission denied for table ..."). Granting here does not widen access
+-- — RLS and the allow-list still gate every row.
+grant usage on schema public to authenticated;
+
+grant select, insert, update, delete on table public.cycle_entries  to authenticated;
+grant select, update                 on table public.cycle_settings to authenticated;
+grant select                         on table public.allowed_emails to authenticated;
