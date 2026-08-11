@@ -63,11 +63,19 @@ create table if not exists cycle_entries (
   id uuid primary key default gen_random_uuid(),
   occurred_at timestamptz not null,
   entry_type text not null check (entry_type in ('period_start', 'period_end', 'note')),
-  notes text,
+  -- Cap the size server-side so a runaway or malicious client cannot dump a
+  -- large blob into the column. 2000 characters is well past a reasonable
+  -- personal note but small enough to reject a paste-in attack.
+  notes text check (notes is null or length(notes) <= 2000),
   created_by text not null default (auth.jwt() ->> 'email'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- If the table already exists, add the constraint idempotently.
+alter table cycle_entries drop constraint if exists cycle_entries_notes_length;
+alter table cycle_entries add constraint cycle_entries_notes_length
+  check (notes is null or length(notes) <= 2000);
 
 create index if not exists cycle_entries_occurred_at_idx on cycle_entries (occurred_at desc);
 

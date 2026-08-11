@@ -81,7 +81,16 @@
         if (table === 'cycle_entries') {
           return {
             select: () => chain(selectResult()),
-            insert: (row) => { entries.push({ id: String(nextId++), ...row }); return Promise.resolve({ error: null }); },
+            insert: (row) => {
+              if (typeof row?.notes === 'string' && row.notes.length > 2000) {
+                return Promise.resolve({ error: {
+                  code: '23514',
+                  message: 'new row for relation "cycle_entries" violates check constraint "cycle_entries_notes_length"',
+                } });
+              }
+              entries.push({ id: String(nextId++), ...row });
+              return Promise.resolve({ error: null });
+            },
             update: (patch) => ({ eq: (_c, id) => { Object.assign(entries.find((x) => x.id === id), patch); return Promise.resolve({ error: null }); } }),
             delete: () => ({ eq: (_c, id) => { const i = entries.findIndex((x) => x.id === id); if (i >= 0) entries.splice(i, 1); return Promise.resolve({ error: null }); } }),
           };

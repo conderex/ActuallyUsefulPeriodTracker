@@ -137,6 +137,8 @@ async function loadData() {
 // shrug, so an unexpected failure is still diagnosable from the screen.
 function describeError(err) {
   const code = err?.code;
+  const message = err?.message || '';
+
   if (code === '42P17') {
     return 'The database security rules are misconfigured (infinite recursion). Re-run supabase/schema.sql.';
   }
@@ -146,10 +148,25 @@ function describeError(err) {
   if (code === 'PGRST116') {
     return 'This account is not on the allow-list, so there is nothing it can read.';
   }
-  if (err?.message?.includes('Failed to fetch')) {
+  if (code === '42501' || /permission denied/i.test(message)) {
+    // Table names and column privileges are internal details; don't echo them
+    // into the UI where a shoulder-surfer or a screenshot could pick them up.
+    return "This account can't do that. Check the allow-list or the database privileges.";
+  }
+  if (code === '23514' || /check constraint|violates check/i.test(message)) {
+    // The one CHECK constraint a user can realistically trip is the notes
+    // length cap, so name that; otherwise stay generic.
+    return /notes/i.test(message)
+      ? 'That note is too long. Keep it under 2000 characters.'
+      : "That value isn't valid.";
+  }
+  if (message.includes('Failed to fetch')) {
     return "Couldn't reach the database. Check your connection.";
   }
-  return err?.message || 'Something went wrong talking to the database.';
+  // Unknown failure. Log the details to the console for developer diagnosis,
+  // but never surface a raw Postgres message to the UI.
+  console.error('unhandled describeError case:', err);
+  return 'Something went wrong talking to the database. If this keeps happening, sign out and back in.';
 }
 
 function loadFromCache() {
@@ -566,7 +583,7 @@ function openSheet(entry, isExisting) {
         </div>
         <div class="field">
           <label for="f-notes">Notes (optional)</label>
-          <textarea id="f-notes">${escapeHTML(entry.notes || '')}</textarea>
+          <textarea id="f-notes" maxlength="2000">${escapeHTML(entry.notes || '')}</textarea>
         </div>
         <div class="sheet-actions">
           ${isExisting ? '<button id="f-delete" class="btn-danger">Delete</button>' : ''}
@@ -622,7 +639,10 @@ function openSheet(entry, isExisting) {
       showToast('Saved.');
     } catch (err) {
       console.error('save failed', err);
-      showToast('Could not save — check your connection.');
+      // Route through the same sanitized message layer as the connection
+      // banner so a CHECK-constraint or permission error names the actual
+      // problem instead of blaming the network.
+      showToast(describeError(err));
     }
   });
 
@@ -635,7 +655,7 @@ function openSheet(entry, isExisting) {
         showToast('Deleted.');
       } catch (err) {
         console.error('delete failed', err);
-        showToast('Could not delete — check your connection.');
+        showToast(describeError(err));
       }
     });
   }
@@ -806,7 +826,7 @@ function wireListeners() {
       showToast('Average updated.');
     } catch (err) {
       console.error('settings save failed', err);
-      showToast('Could not save — check your connection.');
+      showToast(describeError(err));
     }
   });
 

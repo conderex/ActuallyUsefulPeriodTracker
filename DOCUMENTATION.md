@@ -111,7 +111,7 @@ One row per logged event. Three semantic columns (`occurred_at`, `entry_type`, `
 | id           | uuid        | primary key, default `gen_random_uuid()`         |
 | occurred_at  | timestamptz | when the event happened (editable)               |
 | entry_type   | text        | `'period_start' \| 'period_end' \| 'note'`, CHECK constraint |
-| notes        | text        | optional free text                               |
+| notes        | text        | optional free text, `CHECK (length(notes) <= 2000)` |
 | created_by   | text        | `auth.jwt() ->> 'email'`, default expression     |
 | created_at   | timestamptz | audit                                            |
 | updated_at   | timestamptz | audit, maintained by a trigger                   |
