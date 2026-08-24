@@ -1,0 +1,78 @@
+name: Keep Supabase warm
+
+# Supabase's free tier pauses a project after ~7 days without database traffic
+# and then every read and write fails until the project is restored from the
+# dashboard. This workflow pings a tiny stored function every day so the
+# project never crosses that inactivity threshold.
+#
+# Reads SUPABASE_URL and SUPABASE_ANON_KEY straight out of js/config.js so
+# there is no secret to configure. Those values are already public in the
+# deployed HTML; they only unlock what RLS allows, which for the anon role is
+# execute-on the heartbeat() function and nothing else.
+
+on:
+  schedule:
+    # Daily at 06:27 UTC. The off-minute reduces the chance of GitHub skipping
+    # the run during a hot cron minute like :00 or :30.
+    - cron: '27 6 * * *'
+  workflow_dispatch: {}
+
+# One at a time; if a run somehow overlaps another, skip rather than pile up.
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Supabase config from js/config.js
+        id: cfg
+        run: |
+          set -euo pipefail
+          url=$(grep -oP "SUPABASE_URL\s*=\s*'\K[^']+" js/config.js)
+          key=$(grep -oP "SUPABASE_ANON_KEY\s*=\s*'\K[^']+" js/config.js)
+          if [ -z "$url" ] || [ -z "$key" ]; then
+            echo "Missing SUPABASE_URL or SUPABASE_ANON_KEY in js/config.js" >&2
+            exit 1
+          fi
+          # Do NOT print the key to the log; only its length as a sanity check.
+          echo "url=$url" >>"$GITHUB_OUTPUT"
+          # Mask so any accidental future echo of $key is redacted.
+          echo "::add-mask::$key"
+          echo "key=$key" >>"$GITHUB_OUTPUT"
+          echo "url ok, key length ${#key}"
+
+      - name: Call heartbeat()
+        run: |
+          set -euo pipefail
+          url='${{ steps.cfg.outputs.url }}'
+          key='${{ steps.cfg.outputs.key }}'
+          # Retry a few times to shake off transient network flakes without
+          # the whole run being marked failed on a single blip.
+          for attempt in 1 2 3; do
+            body_file=$(mktemp)
+            status=$(curl -sS --max-time 15 \
+              -o "$body_file" -w "%{http_code}" \
+              -X POST \
+              -H "apikey: $key" \
+              -H "Authorization: Bearer $key" \
+              -H "Content-Type: application/json" \
+              --data '{}' \
+              "$url/rest/v1/rpc/heartbeat")
+            if [ "$status" = "200" ]; then
+              echo "heartbeat ok: $(cat "$body_file")"
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $status"
+            cat "$body_file"
+            sleep 5
+          done
+          echo "heartbeat failed after 3 attempts" >&2
+          exit 1

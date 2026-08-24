@@ -158,3 +158,18 @@ grant usage on schema public to authenticated;
 grant select, insert, update, delete on table public.cycle_entries  to authenticated;
 grant select, update                 on table public.cycle_settings to authenticated;
 grant select                         on table public.allowed_emails to authenticated;
+
+
+-- ── heartbeat() ─────────────────────────────────────────────────────────
+-- Supabase's free tier pauses a project after ~7 days without database
+-- traffic. A daily GitHub Action pings this function to keep it warm.
+-- Nothing sensitive: it returns the current timestamp and touches no
+-- table. Exposed to the anon role so the ping needs no user session.
+create or replace function public.heartbeat()
+returns timestamptz
+language sql
+stable
+as $$ select now(); $$;
+
+revoke all on function public.heartbeat() from public;
+grant execute on function public.heartbeat() to anon, authenticated;

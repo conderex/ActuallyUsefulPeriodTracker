@@ -461,6 +461,7 @@ All tokens live at the top of `<style>` in `index.html`, grouped by theme scope.
 Documented so the next maintainer does not have to rediscover them.
 
 - **No email notifications yet.** The original brief mentioned email alerts (upcoming period, log the end, out-of-range cycle, missed check-in). The math to trigger them is done (`cycleFlag.js`, `sql/cycle_flag.sql`) but no scheduled job wires it into Supabase Edge Functions or an equivalent. This is the next feature.
+- **Supabase free tier pauses on inactivity.** After ~7 days without database traffic the project is paused and every request fails. The `.github/workflows/keepalive.yml` workflow pings `public.heartbeat()` daily to keep it warm. If the project is ever paused, it must be restored from the Supabase dashboard before the workflow can help again.
 - **No timezone handling for `daysSince`.** It uses the browser's local time, which is fine because the app has one user. If it ever gains a second user in a different timezone, dates near midnight could disagree.
 - **`period_end` counts do not currently affect the anomaly detection.** Only starts drive cycle length. Period duration could become its own signal but is not one today.
 - **The service worker caches the Supabase SDK across versions.** Bumping `@supabase/supabase-js@2` will not pick up automatically; the `CACHE_NAME` string in `sw.js` has to be bumped alongside.
