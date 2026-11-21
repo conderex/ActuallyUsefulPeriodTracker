@@ -22,8 +22,11 @@ concurrency:
   group: supabase-keepalive
   cancel-in-progress: false
 
+# Needs write so the "stay-alive" step can push a marker commit. Without
+# any push the repo has no activity and GitHub disables the scheduled
+# workflow after 60 days (which is exactly what happened the first time).
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   ping:
@@ -31,6 +34,10 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so `git log` on the marker file can find its last
+          # commit date.
+          fetch-depth: 0
 
       - name: Read Supabase config from js/config.js
         id: cfg
@@ -76,3 +83,33 @@ jobs:
           done
           echo "heartbeat failed after 3 attempts" >&2
           exit 1
+
+      - name: Keep the repository active (defeat GitHub's 60-day workflow disable)
+        # Only when the heartbeat above succeeded; `set -e` on the previous
+        # step would have aborted the job otherwise.
+        run: |
+          set -euo pipefail
+          marker=".github/keepalive-last-ping.txt"
+
+          # When was the marker last committed? If never, treat as the epoch
+          # so the first run always produces a commit and seeds the file.
+          last_commit_ts=$(git log -1 --format=%ct -- "$marker" 2>/dev/null || true)
+          last_commit_ts=${last_commit_ts:-0}
+          now_ts=$(date -u +%s)
+          days_since=$(( (now_ts - last_commit_ts) / 86400 ))
+
+          echo "days since marker last committed: $days_since"
+
+          # Commit at most every 14 days so git history stays small; GitHub's
+          # disable threshold is 60 days, so this has 4x headroom.
+          if [ "$days_since" -lt 14 ]; then
+            echo "within 14-day window, skipping commit"
+            exit 0
+          fi
+
+          date -u +%Y-%m-%dT%H:%M:%SZ > "$marker"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$marker"
+          git commit -m "chore(keepalive): mark repo active $(date -u +%Y-%m-%d)"
+          git push origin HEAD:main
