@@ -112,7 +112,9 @@ async function loadData() {
   try {
     const [entriesRes, settingsRes] = await Promise.all([
       sb.from('cycle_entries').select('*').order('occurred_at', { ascending: true }),
-      sb.from('cycle_settings').select('*').eq('id', 1).single(),
+      // Post-migration: cycle_settings is per-user, no id column; RLS
+      // scopes to the caller's one row, so no filter needed.
+      sb.from('cycle_settings').select('*').single(),
     ]);
     if (entriesRes.error) throw entriesRes.error;
     if (settingsRes.error) throw settingsRes.error;
@@ -224,7 +226,8 @@ async function deleteEntry(id) {
 }
 
 async function saveSettings(patch) {
-  const { error } = await sb.from('cycle_settings').update(patch).eq('id', 1);
+  // RLS restricts the update to the caller's own row; no need for a WHERE.
+  const { error } = await sb.from('cycle_settings').update(patch).not('user_id', 'is', null);
   if (error) throw error;
   await loadData();
 }
