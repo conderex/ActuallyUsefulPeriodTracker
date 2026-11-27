@@ -36,10 +36,18 @@
   let authCallback = null;
   window.__authCalls = [];
   const entries = (FIXTURES[which] || FIXTURES.manyCycles)();
-  let settings = { id: 1, average_override: null, sd_multiplier: 2.0 };
+  // Post-migration shape: per-user rows, no id column. The mock pretends to
+  // be a signed-in user by returning the one row that would belong to them.
+  const MOCK_USER = { id: '00000000-0000-0000-0000-000000000001', email: 'mary@example.com' };
+  let settings = { user_id: MOCK_USER.id, average_override: null, sd_multiplier: 2.0 };
+  let profile  = { user_id: MOCK_USER.id, scene_preference: 'plesiosaur', scene_time_mode: 'auto' };
   const failMode = new URLSearchParams(location.search).get('fail');
 
-  window.__testState = { entries, get settings() { return settings; } };
+  window.__testState = {
+    entries,
+    get settings() { return settings; },
+    get profile()  { return profile; },
+  };
 
   function selectResult() {
     if (failMode === 'denied') {
@@ -66,14 +74,33 @@
     createClient: () => ({
       auth: {
         getSession: () => Promise.resolve({
-          data: { session: signedOut ? null : { user: { email: 'mary@example.com' } } },
+          data: { session: signedOut ? null : { user: MOCK_USER, access_token: 'mock.jwt.token' } },
         }),
         onAuthStateChange: (cb) => { authCallback = cb; return { data: { subscription: { unsubscribe() {} } } }; },
         // Record what the app asked to be redirected to; the tests assert it
         // never carries an auth payload from a previous sign-in.
         signInWithOAuth: (opts) => {
-          window.__authCalls.push(opts);
+          window.__authCalls.push({ provider: 'oauth', ...opts });
           return Promise.resolve({ data: {}, error: null });
+        },
+        signInWithPassword: ({ email, password }) => {
+          window.__authCalls.push({ provider: 'password', email, password });
+          signedOut = false;
+          if (authCallback) authCallback('SIGNED_IN', { user: MOCK_USER, access_token: 'mock.jwt.token' });
+          return Promise.resolve({ data: { user: MOCK_USER }, error: null });
+        },
+        signUp: ({ email, password, options }) => {
+          window.__authCalls.push({ provider: 'signup', email, password, options });
+          // Mirror Supabase's email-confirmation flow: no session until confirmed.
+          return Promise.resolve({ data: { user: { email }, session: null }, error: null });
+        },
+        resetPasswordForEmail: (email, opts) => {
+          window.__authCalls.push({ provider: 'reset', email, options: opts });
+          return Promise.resolve({ data: {}, error: null });
+        },
+        updateUser: (patch) => {
+          window.__authCalls.push({ provider: 'updateUser', ...patch });
+          return Promise.resolve({ data: { user: MOCK_USER }, error: null });
         },
         signOut: () => { signedOut = true; if (authCallback) authCallback('SIGNED_OUT', null); return Promise.resolve({ error: null }); },
       },
@@ -96,11 +123,37 @@
           };
         }
         if (table === 'cycle_settings') {
+          const settingsResult = failMode
+            ? { data: null, error: { code: '42501', message: 'permission denied for table cycle_settings' } }
+            : { data: settings, error: null };
+          // Post-migration: client calls .select('*').single() (no filter),
+          // relying on RLS to return exactly the caller's row. The mock
+          // supports either shape for backward compatibility.
           return {
-            select: () => ({ eq: () => ({ single: () => Promise.resolve(
-              failMode ? { data: null, error: { code: '42501', message: 'permission denied for table cycle_settings' } }
-                       : { data: settings, error: null }) }) }),
-            update: (patch) => ({ eq: () => { Object.assign(settings, patch); return Promise.resolve({ error: null }); } }),
+            select: () => ({
+              eq: () => ({ single: () => Promise.resolve(settingsResult) }),
+              single: () => Promise.resolve(settingsResult),
+            }),
+            update: (patch) => {
+              const applyAndResolve = () => { Object.assign(settings, patch); return Promise.resolve({ error: null }); };
+              return {
+                eq: applyAndResolve,
+                not: applyAndResolve,
+                then: (resolve) => applyAndResolve().then(resolve),
+              };
+            },
+          };
+        }
+        if (table === 'user_profiles') {
+          const profileResult = { data: profile, error: null };
+          return {
+            select: () => ({
+              eq: () => ({ single: () => Promise.resolve(profileResult) }),
+              single: () => Promise.resolve(profileResult),
+            }),
+            update: (patch) => ({
+              eq: () => { Object.assign(profile, patch); return Promise.resolve({ error: null }); },
+            }),
           };
         }
         throw new Error('unexpected table ' + table);

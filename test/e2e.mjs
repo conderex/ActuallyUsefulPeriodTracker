@@ -275,7 +275,7 @@ browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', a
   const banner = await p.locator('#connection-banner').innerText();
   check('denied: banner visible', !(await p.locator('#connection-banner').evaluate((e) => e.classList.contains('hidden'))));
   check("denied: names the problem without echoing internals",
-        /can'?t do that/i.test(banner) && /allow-list|privileges/i.test(banner), banner);
+        /can'?t do that/i.test(banner) && /sign(?:ing)? out and back in/i.test(banner), banner);
   check('denied: does NOT leak the table name', !/cycle_entries|cycle_settings/i.test(banner), banner);
   check('denied: does NOT claim offline', !banner.toLowerCase().includes('offline'), banner);
   check('denied: logging disabled while broken', await p.locator('#log-start-btn').isDisabled());
@@ -589,6 +589,98 @@ browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', a
   const text = await p.locator('#connection-banner').innerText();
   check('generic fallback: does not name any table', !/cycle_entries|cycle_settings|allowed_emails/i.test(text), text);
   check('generic fallback: offers a next step', /sign out/i.test(text), text);
+  await p.close();
+}
+
+// ── 33. Multi-user login UI: Google, email+password, sign-up, reset ──
+{
+  const p = await open('manyCycles', { signedOut: true });
+  check('login: Google button present', await p.locator('#google-signin').isVisible());
+  check('login: email field present',   await p.locator('#auth-email').isVisible());
+  check('login: password field present', await p.locator('#auth-password').isVisible());
+  check('login: three mode tabs', (await p.locator('.login-tab').count()) === 3);
+
+  // Switch to Reset: password field should hide, button text changes
+  await p.click('.login-tab[data-mode="reset"]');
+  await p.waitForTimeout(100);
+  check('login: reset mode hides password', await p.locator('#auth-password-wrap').evaluate((e) => e.classList.contains('hidden')));
+  check('login: reset mode button copy', (await p.locator('#auth-submit').textContent()) === 'Send reset link');
+
+  // Switch to Sign up
+  await p.click('.login-tab[data-mode="signup"]');
+  await p.waitForTimeout(100);
+  check('login: signup shows password again', !(await p.locator('#auth-password-wrap').evaluate((e) => e.classList.contains('hidden'))));
+  check('login: signup button copy', (await p.locator('#auth-submit').textContent()) === 'Create account');
+
+  // Back to Sign in and submit — should reach mock signInWithPassword
+  await p.click('.login-tab[data-mode="signin"]');
+  await p.fill('#auth-email', 'mary@example.com');
+  await p.fill('#auth-password', 'correct-horse');
+  await p.click('#auth-submit');
+  await p.waitForTimeout(400);
+  const calls = await p.evaluate(() => window.__authCalls);
+  check('login: signin fires signInWithPassword',
+        calls.some((c) => c.provider === 'password' && c.email === 'mary@example.com'),
+        JSON.stringify(calls));
+  check('login: app shown after successful sign-in', await p.locator('#app-view').isVisible());
+  await p.close();
+}
+
+// ── 34. Sign-up shows "check your inbox" when no session is returned ──
+{
+  const p = await open('manyCycles', { signedOut: true });
+  await p.click('.login-tab[data-mode="signup"]');
+  await p.fill('#auth-email', 'new@example.com');
+  await p.fill('#auth-password', 'longenough1');
+  await p.click('#auth-submit');
+  await p.waitForTimeout(400);
+  const notice = await p.locator('#login-notice').innerText().catch(() => '');
+  check('signup: shows confirmation notice', /confirmation link/i.test(notice), notice);
+  check('signup: switches back to signin tab after',
+        await p.locator('.login-tab[data-mode="signin"]').evaluate((e) => e.classList.contains('on')));
+  await p.close();
+}
+
+// ── 35. Reset password sends the email ────────────────────────────────
+{
+  const p = await open('manyCycles', { signedOut: true });
+  await p.click('.login-tab[data-mode="reset"]');
+  await p.fill('#auth-email', 'mary@example.com');
+  await p.click('#auth-submit');
+  await p.waitForTimeout(400);
+  const calls = await p.evaluate(() => window.__authCalls);
+  check('reset: resetPasswordForEmail called',
+        calls.some((c) => c.provider === 'reset' && c.email === 'mary@example.com'),
+        JSON.stringify(calls));
+  const notice = await p.locator('#login-notice').innerText().catch(() => '');
+  check('reset: shows a status notice', /reset link/i.test(notice), notice);
+  await p.close();
+}
+
+// ── 36. The client never hand-filters by user_id (RLS is the source of truth)
+{
+  const p = await open('manyCycles');
+  const appJs = await (await p.request.get(`http://localhost:${PORT}/js/app.js`)).text();
+  const badPatterns = [
+    /\.eq\(\s*['"]user_id['"]/,
+    /where.*user_id/i,
+    /filter.*user_id/i,
+  ];
+  const violations = badPatterns.filter((re) => re.test(appJs));
+  check("rls-only: client never filters by user_id (that's Postgres's job)",
+        violations.length === 0,
+        violations.map((r) => r.source).join('; '));
+  await p.close();
+}
+
+// ── 37. Auth client is configured explicitly (not relying on defaults) ─
+{
+  const p = await open('manyCycles');
+  const appJs = await (await p.request.get(`http://localhost:${PORT}/js/app.js`)).text();
+  check('auth config: persistSession set',     /persistSession:\s*true/.test(appJs));
+  check('auth config: autoRefreshToken set',   /autoRefreshToken:\s*true/.test(appJs));
+  check('auth config: detectSessionInUrl set', /detectSessionInUrl:\s*true/.test(appJs));
+  check('auth config: pkce flow set',          /flowType:\s*['"]pkce['"]/.test(appJs));
   await p.close();
 }
 

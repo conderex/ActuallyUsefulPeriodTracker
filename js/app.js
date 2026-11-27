@@ -1,7 +1,23 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { evaluateCycle, isLongGap, CYCLE_FLAG_DEFAULTS } from './cycleFlag.js';
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Explicit auth config — matches DoingTheDoings. The defaults happen to be
+// the same today, but being explicit keeps future supabase-js updates from
+// silently changing behavior that the whole login flow depends on.
+//
+// - persistSession keeps the session in localStorage across reloads
+// - autoRefreshToken rotates the JWT before it expires
+// - detectSessionInUrl parses the hash/query after an OAuth or magic-link
+//   callback and establishes the session before init() returns
+// - pkce is the recommended flow for public clients (no secret in the URL)
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+});
 
 const LS_ENTRIES = 'cycle-tracker:entries';
 const LS_SETTINGS = 'cycle-tracker:settings';
@@ -13,12 +29,21 @@ const LS_SETTINGS = 'cycle-tracker:settings';
 // of the fresh one — landing straight back on the login screen.
 const APP_URL = `${window.location.origin}${window.location.pathname}`;
 
+const AUTH_MODE = Object.freeze({
+  SIGNIN: 'signin',
+  SIGNUP: 'signup',
+  RESET: 'reset',
+});
+
 const state = {
   session: null,
   entries: [],
   settings: { average_override: null, sd_multiplier: CYCLE_FLAG_DEFAULTS.SD_MULT },
+  profile: null,
   graphMode: 'months',
   weeksCount: 12,
+  authMode: AUTH_MODE.SIGNIN,
+  recoveryActive: false,
 };
 
 // ---------------------------------------------------------------- Bootstrap
@@ -26,7 +51,8 @@ const state = {
 async function init() {
   registerServiceWorker();
   wireListeners();
-  render();
+  renderAuthMode();
+  showView('loading');
 
   const callbackError = readAuthCallbackError();
 
@@ -35,16 +61,37 @@ async function init() {
   const { data: { session } } = await sb.auth.getSession();
   stripAuthParamsFromUrl();
 
-  state.session = session;
-  render();
+  await handleSession(session);
   if (!session && callbackError) showAuthError(callbackError);
-  if (session) await loadData();
 
-  sb.auth.onAuthStateChange(async (_event, session) => {
-    state.session = session;
-    render();
-    if (session) { clearAuthError(); await loadData(); }
+  // Single session handler, DoingTheDoings-style: filter the events that
+  // would cause unnecessary re-renders or lose UI state.
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'INITIAL_SESSION') return;   // already handled by getSession above
+    if (event === 'TOKEN_REFRESHED') return;   // persistSession writes the new token transparently
+    if (event === 'PASSWORD_RECOVERY') {
+      // User clicked a reset email link. Keep them on the login view but
+      // show the "set a new password" card instead of the sign-in form.
+      state.recoveryActive = true;
+      showView('login');
+      renderRecovery();
+      return;
+    }
+    clearAuthError();
+    await handleSession(session);
   });
+}
+
+async function handleSession(session) {
+  state.session = session;
+  if (session?.user?.id) {
+    state.recoveryActive = false;
+    showView('app');
+    await loadData();
+  } else {
+    showView('login');
+    renderRecovery();
+  }
 }
 
 // Supabase reports a failed callback as error params on either the hash or the
@@ -83,10 +130,20 @@ function showAuthError(message) {
   if (!el) return;
   el.textContent = message;
   el.classList.remove('hidden');
+  document.getElementById('login-notice')?.classList.add('hidden');
+}
+
+function showAuthNotice(message) {
+  const el = document.getElementById('login-notice');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+  document.getElementById('login-error')?.classList.add('hidden');
 }
 
 function clearAuthError() {
   document.getElementById('login-error')?.classList.add('hidden');
+  document.getElementById('login-notice')?.classList.add('hidden');
 }
 
 function registerServiceWorker() {
@@ -95,9 +152,46 @@ function registerServiceWorker() {
   }
 }
 
-function render() {
-  document.getElementById('login-view').classList.toggle('hidden', !!state.session);
-  document.getElementById('app-view').classList.toggle('hidden', !state.session);
+// which: 'app' | 'login' | 'loading'
+function showView(which) {
+  document.getElementById('login-view').classList.toggle('hidden', which !== 'login');
+  document.getElementById('app-view').classList.toggle('hidden', which !== 'app');
+}
+
+function renderAuthMode() {
+  const mode = state.authMode;
+  const isReset = mode === AUTH_MODE.RESET;
+
+  document.querySelectorAll('.login-tab').forEach((btn) => {
+    btn.classList.toggle('on', btn.dataset.mode === mode);
+    btn.setAttribute('aria-selected', btn.dataset.mode === mode ? 'true' : 'false');
+  });
+
+  const passwordWrap = document.getElementById('auth-password-wrap');
+  if (passwordWrap) passwordWrap.classList.toggle('hidden', isReset);
+
+  const password = document.getElementById('auth-password');
+  if (password) {
+    password.required = !isReset;
+    password.autocomplete = mode === AUTH_MODE.SIGNUP ? 'new-password' : 'current-password';
+  }
+
+  const submit = document.getElementById('auth-submit');
+  if (submit) {
+    submit.textContent = {
+      [AUTH_MODE.SIGNIN]: 'Sign in',
+      [AUTH_MODE.SIGNUP]: 'Create account',
+      [AUTH_MODE.RESET]: 'Send reset link',
+    }[mode];
+  }
+}
+
+function renderRecovery() {
+  const mainCard = document.getElementById('login-main-card');
+  const recoveryCard = document.getElementById('recovery-card');
+  if (!mainCard || !recoveryCard) return;
+  mainCard.classList.toggle('hidden', state.recoveryActive);
+  recoveryCard.classList.toggle('hidden', !state.recoveryActive);
 }
 
 // --------------------------------------------------------------- Data sync
@@ -110,16 +204,22 @@ async function loadData() {
     return;
   }
   try {
-    const [entriesRes, settingsRes] = await Promise.all([
+    const [entriesRes, settingsRes, profileRes] = await Promise.all([
       sb.from('cycle_entries').select('*').order('occurred_at', { ascending: true }),
-      // Post-migration: cycle_settings is per-user, no id column; RLS
-      // scopes to the caller's one row, so no filter needed.
+      // Post-migration: these are per-user, no .eq() filter — RLS returns
+      // exactly the caller's row. If the client ever did add a filter, it
+      // would be redundant at best and a data-leak bug at worst.
       sb.from('cycle_settings').select('*').single(),
+      sb.from('user_profiles').select('*').single(),
     ]);
     if (entriesRes.error) throw entriesRes.error;
     if (settingsRes.error) throw settingsRes.error;
+    // user_profiles can legitimately 404 for a user whose trigger-seeded
+    // row is missing (shouldn't happen, but don't block the whole load).
+    if (profileRes.error && profileRes.error.code !== 'PGRST116') throw profileRes.error;
     state.entries = entriesRes.data ?? [];
     state.settings = settingsRes.data ?? state.settings;
+    state.profile = profileRes.data ?? null;
     localStorage.setItem(LS_ENTRIES, JSON.stringify(state.entries));
     localStorage.setItem(LS_SETTINGS, JSON.stringify(state.settings));
     setConnectionStatus('ok');
@@ -139,36 +239,59 @@ async function loadData() {
 // shrug, so an unexpected failure is still diagnosable from the screen.
 function describeError(err) {
   const code = err?.code;
+  const status = err?.status;
   const message = err?.message || '';
+  const lower = message.toLowerCase();
 
+  // ── Auth errors (checked first so bad-credentials doesn't fall through
+  // to the generic "permission denied" case below).
+  if (/invalid login credentials/i.test(message) || lower.includes('invalid email or password')) {
+    return 'Wrong email or password.';
+  }
+  if (/email not confirmed/i.test(message) || lower.includes('not confirmed')) {
+    return 'Check your inbox for the confirmation link before signing in.';
+  }
+  if (/user already registered/i.test(message) || lower.includes('already registered')) {
+    return 'An account with that email already exists. Try signing in instead.';
+  }
+  if (/password should be at least/i.test(message) || /weak.?password/i.test(message)) {
+    return 'That password is too short. Use at least 6 characters.';
+  }
+  if (lower.includes('for security purposes') && lower.includes('request')) {
+    // Supabase rate-limits reset/signup requests
+    return "That's a lot of attempts in a short time. Wait a minute and try again.";
+  }
+
+  // ── Database errors
   if (code === '42P17') {
     return 'The database security rules are misconfigured (infinite recursion). Re-run supabase/schema.sql.';
   }
-  if (code === 'PGRST301' || err?.status === 401) {
+  if (code === 'PGRST301' || status === 401) {
     return 'Your sign-in expired. Sign out and back in.';
   }
   if (code === 'PGRST116') {
-    return 'This account is not on the allow-list, so there is nothing it can read.';
+    // Was "not on the allow-list" pre-migration. Post-migration PGRST116 means
+    // zero rows returned by .single(), which for a user whose trigger-seeded
+    // profile/settings is missing is the symptom to report.
+    return "Can't find your profile row. Try signing out and back in; if that doesn't help, your account may need re-provisioning.";
   }
   if (code === '42501' || /permission denied/i.test(message)) {
     // Table names and column privileges are internal details; don't echo them
     // into the UI where a shoulder-surfer or a screenshot could pick them up.
-    return "This account can't do that. Check the allow-list or the database privileges.";
+    return "This account can't do that right now. Try signing out and back in.";
   }
   if (code === '23514' || /check constraint|violates check/i.test(message)) {
-    // The one CHECK constraint a user can realistically trip is the notes
-    // length cap, so name that; otherwise stay generic.
     return /notes/i.test(message)
       ? 'That note is too long. Keep it under 2000 characters.'
       : "That value isn't valid.";
   }
   if (message.includes('Failed to fetch')) {
-    return "Couldn't reach the database. Check your connection.";
+    return "Couldn't reach the server. Check your connection.";
   }
   // Unknown failure. Log the details to the console for developer diagnosis,
   // but never surface a raw Postgres message to the UI.
   console.error('unhandled describeError case:', err);
-  return 'Something went wrong talking to the database. If this keeps happening, sign out and back in.';
+  return 'Something went wrong. If this keeps happening, sign out and back in.';
 }
 
 function loadFromCache() {
@@ -784,8 +907,8 @@ function wireListeners() {
       });
       if (error) throw error;
     } catch (err) {
-      console.error('sign-in failed', err);
-      showAuthError(err?.message || 'Sign-in failed — try again.');
+      console.error('google sign-in failed', err);
+      showAuthError(describeError(err));
     }
   });
 
@@ -798,6 +921,86 @@ function wireListeners() {
     // Leave the address bar clean so the next sign-in starts from scratch.
     stripAuthParamsFromUrl();
     clearAuthError();
+  });
+
+  // Mode switcher: Sign in / Sign up / Reset password
+  document.querySelectorAll('.login-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.authMode = btn.dataset.mode;
+      clearAuthError();
+      renderAuthMode();
+    });
+  });
+
+  // Unified email/password/reset form
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearAuthError();
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const submit = document.getElementById('auth-submit');
+    if (!email) { showAuthError('Enter your email.'); return; }
+
+    submit.disabled = true;
+    try {
+      if (state.authMode === AUTH_MODE.SIGNUP) {
+        const { data, error } = await sb.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: APP_URL },
+        });
+        if (error) throw error;
+        // When email confirmations are on, Supabase returns a user but no
+        // session — the user has to click the link in their inbox first.
+        if (data?.session) {
+          // Confirmations are off (dev mode) — user is signed in immediately.
+          // onAuthStateChange will fire and handleSession takes over.
+          document.getElementById('auth-password').value = '';
+        } else {
+          showAuthNotice(`Check ${email} for a confirmation link. Click it, then come back and sign in.`);
+          state.authMode = AUTH_MODE.SIGNIN;
+          renderAuthMode();
+        }
+      } else if (state.authMode === AUTH_MODE.RESET) {
+        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: APP_URL });
+        if (error) throw error;
+        showAuthNotice(`If an account exists for ${email}, a reset link is on its way.`);
+      } else {
+        // SIGNIN
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        document.getElementById('auth-password').value = '';
+      }
+    } catch (err) {
+      console.error(`${state.authMode} failed`, err);
+      showAuthError(describeError(err));
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  // Password recovery screen (shown after clicking a reset email link)
+  document.getElementById('recovery-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearAuthError();
+    const password = document.getElementById('recovery-password').value;
+    if (!password || password.length < 6) {
+      showAuthError('Use at least 6 characters.');
+      return;
+    }
+    try {
+      const { error } = await sb.auth.updateUser({ password });
+      if (error) throw error;
+      state.recoveryActive = false;
+      renderRecovery();
+      showAuthNotice('Password updated. Signing you in…');
+      // After updateUser the user is already authenticated, so
+      // onAuthStateChange has fired SIGNED_IN. handleSession takes it
+      // from here.
+    } catch (err) {
+      console.error('password update failed', err);
+      showAuthError(describeError(err));
+    }
   });
 
   document.getElementById('log-start-btn').addEventListener('click', () => {
